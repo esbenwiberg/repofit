@@ -87,6 +87,9 @@ export async function runAdd(opts: AddOptions): Promise<number> {
   }
 
   const interactive = !opts.nonInteractive && isInteractive();
+  if (target.requires.entries.length > 0) {
+    console.log(`agentry add: resolving plan for '${opts.id}'…`);
+  }
   const order = await resolvePlan(target, entries, opts, interactive);
   if (order === null) {
     console.error("agentry add: aborted");
@@ -159,6 +162,14 @@ async function recordInstalls(
   if (touched) await writeLockfile(cwd, lf);
 }
 
+type DepDecision = "skip" | "ask" | "auto-install";
+
+function warnDepSkipped(entryId: string, depId: string, reason: string): void {
+  console.warn(
+    `  warning: '${entryId}' depends on '${depId}' — not installing (${reason}). Run 'agentry add ${depId}' separately.`,
+  );
+}
+
 async function resolvePlan(
   target: CatalogEntry,
   all: CatalogEntry[],
@@ -179,26 +190,30 @@ async function resolvePlan(
       if (isAlreadyInstalled(dep, opts.cwd)) continue;
       if (seen.has(depId)) continue;
 
-      if (opts.noDeps) {
-        console.warn(
-          `  warning: '${entry.id}' depends on '${depId}' (skipped via --no-deps). Run 'agentry add ${depId}' separately.`,
-        );
+      // Non-interactive picks the safe default for each prompt:
+      // YES for deps (skipping leaves a broken install), KEEP for conflicts
+      // (overwriting destroys user data). Different defaults, same principle.
+      const decision: DepDecision = opts.noDeps
+        ? "skip"
+        : interactive
+          ? "ask"
+          : "auto-install";
+
+      if (decision === "skip") {
+        warnDepSkipped(entry.id, depId, "--no-deps");
         continue;
       }
-
-      const proceed = interactive
-        ? await confirm(
-            `'${entry.id}' depends on '${depId}' (not installed). Install '${depId}' too?`,
-            true,
-          )
-        : true;
+      const proceed =
+        decision === "auto-install" ||
+        (await confirm(
+          `'${entry.id}' depends on '${depId}' (not installed). Install '${depId}' too?`,
+          true,
+        ));
       if (proceed) {
         const ok = await visit(dep);
         if (!ok) return false;
       } else {
-        console.warn(
-          `  warning: '${entry.id}' depends on '${depId}' (declined). Run 'agentry add ${depId}' separately.`,
-        );
+        warnDepSkipped(entry.id, depId, "declined");
       }
     }
     order.push(entry);

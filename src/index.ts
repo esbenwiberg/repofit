@@ -33,7 +33,8 @@ Flags (add):
   --no-claude                        Skip files with flavor=claude
   --no-recipe                        Skip files with flavor=agnostic
   --no-deps                          Skip auto-install of requires.entries
-  --non-interactive                  Don't prompt; auto-install deps, keep existing
+  --non-interactive                  Don't prompt; pick the safe default per
+                                     prompt (install deps, keep existing files)
   --dry-run                          Show what would happen, don't write
 
 Flags (upgrade):
