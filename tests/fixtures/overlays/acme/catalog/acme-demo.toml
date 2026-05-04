@@ -1,0 +1,14 @@
+id = "acme-demo"
+name = "Acme demo entry"
+description = "Synthetic entry shipped by the acme overlay for end-to-end tests"
+version = "0.1.0"
+layers = ["context"]
+
+[[provides]]
+source = "skills/acme-demo/skill.md"
+target = ".claude/skills/acme-demo/skill.md"
+flavor = "claude"
+conflict = "prompt"
+
+[detect]
+any_of = [".claude/skills/acme-demo/skill.md"]

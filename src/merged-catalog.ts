@@ -6,7 +6,11 @@ import {
   type CatalogLoadResult,
   type MalformedEntry,
 } from "./catalog.js";
-import { loadOverlays, type MalformedOverlay } from "./overlays.js";
+import {
+  loadOverlays,
+  type MalformedOverlay,
+  type ParsedOverlay,
+} from "./overlays.js";
 import { CATALOG_DIR, CONTENT_DIR } from "./paths.js";
 
 export interface MergedCatalogResult {
@@ -14,6 +18,7 @@ export interface MergedCatalogResult {
   malformed: MalformedEntry[];
   shadowed: CatalogEntry[];
   overlayLoadErrors: MalformedOverlay[];
+  registeredOverlays: ParsedOverlay[];
 }
 
 export function loadMergedCatalog(repoRoot: string): MergedCatalogResult {
@@ -52,5 +57,10 @@ export function loadMergedCatalog(repoRoot: string): MergedCatalogResult {
     priorMalformed,
   );
 
-  return { ...validated, shadowed, overlayLoadErrors };
+  return {
+    ...validated,
+    shadowed,
+    overlayLoadErrors,
+    registeredOverlays: overlays,
+  };
 }

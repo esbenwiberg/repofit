@@ -14,3 +14,11 @@ export function pickString(
   const v = obj[key];
   return isString(v) ? v : fallback;
 }
+
+export function pickOptionalString(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const v = obj[key];
+  return isString(v) && v !== "" ? v : undefined;
+}

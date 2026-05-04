@@ -2,17 +2,21 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   activeEntries,
-  loadCatalog,
   type CatalogEntry,
   type Layer,
 } from "../catalog.js";
-import { CONTENT_DIR } from "../paths.js";
+import { loadMergedCatalog } from "../merged-catalog.js";
 import { isToolAvailable } from "../io.js";
 import { classifyProvideDrift, type DriftKind } from "../drift.js";
+import {
+  printMalformedEntries,
+  printOverlayLoadErrors,
+} from "../warnings.js";
 import {
   findLockedEntry,
   readLockfile,
   type Lockfile,
+  type LockedEntry,
 } from "../lockfile.js";
 
 export interface DoctorOptions {
@@ -20,7 +24,14 @@ export interface DoctorOptions {
 }
 
 type Status = "installed" | "missing" | "partial";
-type ReportedDriftKind = Exclude<DriftKind, "missing">;
+type ReportedDriftKind = Exclude<DriftKind, "missing" | "orphaned">;
+
+interface OrphanedReport {
+  id: string;
+  overlay: string | undefined;
+  reason: string;
+  provides: string[];
+}
 
 interface ProvideDrift {
   target: string;
@@ -60,7 +71,8 @@ const STATUS_GLYPH: Record<Status, string> = {
 };
 
 export async function runDoctor(options: DoctorOptions): Promise<number> {
-  const { entries, malformed } = loadCatalog();
+  const { entries, malformed, overlayLoadErrors, registeredOverlays } =
+    loadMergedCatalog(options.cwd);
 
   if (entries.length === 0 && malformed.length === 0) {
     console.log("No catalog entries to audit.");
@@ -68,12 +80,18 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
   }
 
   const lockfile = await readLockfile(options.cwd);
+  const knownIds = new Set(entries.map((e) => e.id));
+  const registeredOverlayIds = new Set(
+    registeredOverlays.map((o) => o.registrationId),
+  );
 
   const reports = await Promise.all(
     activeEntries(entries).map((entry) =>
       buildReport(entry, options.cwd, lockfile),
     ),
   );
+
+  const orphaned = findOrphaned(lockfile, knownIds, registeredOverlayIds);
 
   console.log(`agentry doctor — auditing ${options.cwd}`);
   if (lockfile === null) {
@@ -99,23 +117,57 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
     console.log("");
   }
 
-  printSummary(reports);
-
-  if (malformed.length > 0) {
-    console.warn("");
-    console.warn(
-      `${malformed.length} malformed catalog entr${malformed.length === 1 ? "y" : "ies"} skipped:`,
-    );
-    for (const m of malformed) {
-      const tag = m.id ?? "(unparsed)";
-      console.warn(`  - ${tag} [${m.sourceFile}]`);
-      for (const err of m.errors) {
-        console.warn(`      • ${err}`);
-      }
-    }
+  if (orphaned.length > 0) {
+    console.log("[orphaned]");
+    for (const o of orphaned) printOrphaned(o);
+    console.log("");
   }
 
+  printSummary(reports, orphaned);
+
+  printOverlayLoadErrors(overlayLoadErrors);
+  printMalformedEntries(malformed);
+
   return 0;
+}
+
+function findOrphaned(
+  lockfile: Lockfile | null,
+  knownIds: Set<string>,
+  registeredOverlays: Set<string>,
+): OrphanedReport[] {
+  if (!lockfile) return [];
+  const out: OrphanedReport[] = [];
+  for (const e of lockfile.installed) {
+    if (knownIds.has(e.id)) continue;
+    out.push({
+      id: e.id,
+      overlay: e.overlay,
+      reason: orphanedReason(e, registeredOverlays),
+      provides: e.provides.map((p) => p.target),
+    });
+  }
+  return out;
+}
+
+function orphanedReason(
+  e: LockedEntry,
+  registeredOverlays: Set<string>,
+): string {
+  if (e.overlay) {
+    return registeredOverlays.has(e.overlay)
+      ? `overlay '${e.overlay}' no longer ships entry`
+      : `overlay '${e.overlay}' is not registered`;
+  }
+  return `no longer in bundled catalog`;
+}
+
+function printOrphaned(o: OrphanedReport): void {
+  const tag = o.overlay ? ` (was overlay:${o.overlay})` : "";
+  console.log(`  ! ${o.id.padEnd(16)} orphaned${tag} — ${o.reason}`);
+  for (const t of o.provides) {
+    console.log(`      lockfile-only: ${t}`);
+  }
 }
 
 async function buildReport(
@@ -135,7 +187,7 @@ async function buildReport(
 
   for (const p of entry.provides) {
     const dest = resolve(cwd, p.target);
-    const src = resolve(CONTENT_DIR, p.source);
+    const src = resolve(entry.sourceRoot, p.source);
     if (existsSync(dest)) {
       providedPresent.push(p.target);
     } else {
@@ -250,7 +302,7 @@ function summarise(reports: Report[]): Summary {
   return out;
 }
 
-function printSummary(reports: Report[]): void {
+function printSummary(reports: Report[], orphaned: OrphanedReport[]): void {
   const s = summarise(reports);
   const head = `${s.installed} installed, ${s.partial} partial, ${s.missing} missing`;
   const tail: string[] = [];
@@ -261,6 +313,9 @@ function printSummary(reports: Report[]): void {
   }
   if (s.toolGaps > 0) {
     tail.push(`${s.toolGaps} tool gap${s.toolGaps === 1 ? "" : "s"}`);
+  }
+  if (orphaned.length > 0) {
+    tail.push(`${orphaned.length} orphaned`);
   }
   const tailStr = tail.length > 0 ? `; ${tail.join(", ")}` : "";
   console.log(`summary: ${head}${tailStr}`);

@@ -43,6 +43,7 @@ export interface CatalogEntry {
   requires: Requires;
   deprecated_by?: string;
   sourceFile: string;
+  sourceRoot: string;
   overlay?: string;
 }
 
@@ -288,6 +289,7 @@ function parseEntry(
     detect,
     requires,
     sourceFile: filePath,
+    sourceRoot,
     ...(deprecated_by ? { deprecated_by } : {}),
     ...(overlayId ? { overlay: overlayId } : {}),
   };

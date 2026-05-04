@@ -1,13 +1,15 @@
 import { resolve } from "node:path";
 import {
   activeEntries,
-  loadCatalog,
   type CatalogEntry,
   type Provide,
 } from "../catalog.js";
-import { CONTENT_DIR } from "../paths.js";
+import { loadMergedCatalog } from "../merged-catalog.js";
 import { ensureDirAndCopy } from "../io.js";
-import { classifyProvideDrift, type DriftKind } from "../drift.js";
+import {
+  classifyProvideDrift,
+  type ProvideDriftKind,
+} from "../drift.js";
 import {
   findLockedEntry,
   mergeLockedProvides,
@@ -31,7 +33,7 @@ export interface UpgradeOptions {
 
 interface ProvideAction {
   provide: Provide;
-  kind: DriftKind;
+  kind: ProvideDriftKind;
 }
 
 interface EntryPlan {
@@ -40,19 +42,19 @@ interface EntryPlan {
   actions: ProvideAction[];
 }
 
-function actionLabel(kind: DriftKind, force: boolean): string {
+function actionLabel(kind: ProvideDriftKind, force: boolean): string {
   if (kind === "out-of-date") return "refresh-out-of-date";
   if (kind === "missing") return "write-missing";
   return force ? "force-user-edit" : "keep-user-edit";
 }
 
-function actionGlyph(kind: DriftKind, force: boolean): string {
+function actionGlyph(kind: ProvideDriftKind, force: boolean): string {
   if (kind === "out-of-date") return "~";
   if (kind === "missing") return "+";
   return force ? "!" : "·";
 }
 
-function willWrite(kind: DriftKind, force: boolean): boolean {
+function willWrite(kind: ProvideDriftKind, force: boolean): boolean {
   return kind !== "user-edit" || force;
 }
 
@@ -61,7 +63,11 @@ function planReasons(plan: EntryPlan): string[] {
   if (plan.locked.version !== plan.entry.version) {
     reasons.push(`v${plan.locked.version}→${plan.entry.version}`);
   }
-  const counts = { "out-of-date": 0, "user-edit": 0, missing: 0 } satisfies Record<DriftKind, number>;
+  const counts = {
+    "out-of-date": 0,
+    "user-edit": 0,
+    missing: 0,
+  } satisfies Record<ProvideDriftKind, number>;
   for (const a of plan.actions) counts[a.kind] += 1;
   if (counts["out-of-date"] > 0) reasons.push(`${counts["out-of-date"]} out-of-date`);
   if (counts["user-edit"] > 0) {
@@ -81,7 +87,7 @@ export async function runUpgrade(opts: UpgradeOptions): Promise<number> {
     return 1;
   }
 
-  const { entries } = loadCatalog();
+  const { entries } = loadMergedCatalog(opts.cwd);
   const allPlans = await Promise.all(
     activeEntries(entries).map((e) => buildPlan(e, lf, opts.cwd)),
   );
@@ -140,7 +146,7 @@ async function buildPlan(
   const classified = await Promise.all(
     entry.provides.map(async (provide): Promise<ProvideAction | null> => {
       const dest = resolve(cwd, provide.target);
-      const src = resolve(CONTENT_DIR, provide.source);
+      const src = resolve(entry.sourceRoot, provide.source);
       const kind = await classifyProvideDrift(src, dest, provide.target, locked);
       return kind === null ? null : { provide, kind };
     }),
@@ -162,7 +168,7 @@ async function applyPlan(
   const fresh: LockedProvide[] = [];
   for (const a of plan.actions) {
     if (!willWrite(a.kind, force)) continue;
-    const src = resolve(CONTENT_DIR, a.provide.source);
+    const src = resolve(plan.entry.sourceRoot, a.provide.source);
     const dest = resolve(cwd, a.provide.target);
     await ensureDirAndCopy(src, dest);
     fresh.push({
@@ -179,5 +185,6 @@ async function applyPlan(
     version: plan.entry.version,
     installed_at: new Date().toISOString(),
     provides: merged,
+    ...(plan.entry.overlay ? { overlay: plan.entry.overlay } : {}),
   });
 }

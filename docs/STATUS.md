@@ -1,6 +1,6 @@
 # agentry — status
 
-*Last updated: 2026-05-04 — Phase 3 design locked (ADR-0004 overlay plugin model); 83 tests, ~1.2s.*
+*Last updated: 2026-05-04 — Phase 3 chunks 1–4 shipped (manifest loader, merged catalog, lockfile overlay + orphaned drift, e2e overlay fixture); 119 tests, ~1.4s.*
 
 Current snapshot of where the build is against the original 7-phase plan
 (`~/.claude/plans/lets-brainstorm-the-idea-cheerful-pelican.md`). Update as
@@ -13,20 +13,21 @@ phases close.
 | 0. Bootstrap | New repo, package layout, dogfood | ✅ done — flat `src/` + `content/` layout, not the planned `packages/{cli,kernel,stack-dotnet}` monorepo. Has own `CLAUDE.md`, `docs/adr/`, `.changes/` |
 | 1. Kernel extraction | 7-layer template hand-extracted from TeamPlanner | ✅ done — `content/skills/` + `content/recipes/` exist; 6 catalog entries (commits, changelog, code-review, pull-requests, git-hooks, ship). Templates: `CLAUDE.md`, nested `CLAUDE.md`, `PRACTICES.md`, `.agent.toml` (ADR-0003), specs (`coach spec-init` + `coach spec`) |
 | 2. CLI MVP | `agentry init` + `agentry doctor` | ⚠️ pivoted — no monolithic `init`. Composable verbs instead: `list`, `doctor`, `add`, `upgrade`, `remove`, `coach`. Better separation of concerns; revisit if first-run UX needs a one-shot |
-| 3. Plugin model + first overlay | Manifest, capability sandbox, `@stack/dotnet` | 🟡 design locked (ADR-0004) — local overlay paths only, catalog as trust surface, no daemon/marketplace/remote fetch. Loader + `agentry.overlays.toml` registration + orphaned `DriftKind` are next |
+| 3. Plugin model + first overlay | Manifest, capability sandbox, `@stack/dotnet` | 🟢 functionally complete — chunks 1–4 shipped: `agentry.overlays.toml` parser (`src/overlays.ts`), merged catalog with last-wins (`src/merged-catalog.ts`), lockfile `overlay` field + `orphaned` DriftKind + doctor reporting + verbs wired to merged loader, e2e fixture at `tests/fixtures/overlays/acme/` driving add/doctor/upgrade/remove. Overlay author docs still TODO. ADR-0004 |
 | 4. `agentry upgrade` | Re-render + 3-way merge | ✅ done — lockfile-as-truth model, `--force` to overwrite user-edits, `--dry-run`, `--non-interactive` |
 | 5. TeamPlanner round-trip | Rip out hand-built `.claude/`, re-init via agentry | ❌ not started. TeamPlanner intentionally untouched until kernel + plugin model prove out |
 | 6. Helpers + community overlays | `spec new`, `adr new`, third-party stacks | 🟡 partial — helpers ✅ (`coach adr-init`/`adr`, `coach spec-init`/`spec`); community overlay surface ❌ not started |
 
 ## What works today
 
-- `agentry list` — catalog browser, `--show-deprecated` flag
-- `agentry doctor [path]` — 7-layer audit, classifies missing / out-of-date / user-edit drift via shared `src/drift.ts`
-- `agentry add <id> [path]` — installs an entry, auto-resolves `requires.entries` deps (lockfile-aware), conflict prompts, `--no-claude` / `--no-recipe` / `--no-deps` / `--non-interactive` / `--dry-run`
-- `agentry upgrade [id] [path]` — refreshes installed entries from catalog
-- `agentry remove <id> [path]` — uninstalls, `--force` deletes user-edits, prunes lockfile
+- `agentry list [path]` — catalog browser (bundled + overlays at path), `--show-deprecated` flag, marks overlay-sourced entries with `[overlay:<id>]`
+- `agentry doctor [path]` — 7-layer audit, classifies missing / out-of-date / user-edit / orphaned drift via shared `src/drift.ts`. Orphaned = locked entry whose id has vanished from the merged catalog
+- `agentry add <id> [path]` — installs an entry (bundled or overlay), auto-resolves `requires.entries` deps (lockfile-aware), conflict prompts, `--no-claude` / `--no-recipe` / `--no-deps` / `--non-interactive` / `--dry-run`. Records `overlay = "<id>"` in lockfile when the entry came from an overlay
+- `agentry upgrade [id] [path]` — refreshes installed entries from the merged catalog (bundled + overlays)
+- `agentry remove <id> [path]` — uninstalls, `--force` deletes user-edits, prunes lockfile (preserves `overlay` field on partial removal)
 - `agentry coach <kind>` — un-installable scaffolding (`claude-md`, `practices`, `agent-profile`, `adr-init`, `adr`, `spec-init`, `spec`)
-- `agentry.lock.toml` — provenance + checksums, drives all three drift verbs
+- `agentry.overlays.toml` — registers local overlay paths; each overlay ships its own `agentry.overlay.toml` manifest + `catalog/` dir
+- `agentry.lock.toml` — provenance + checksums + overlay attribution, drives all four drift kinds
 
 ## Bonus shipped (not in original plan)
 
@@ -44,31 +45,21 @@ phases close.
 - **`PRACTICES.md` template** ships at `content/templates/PRACTICES.template.md`, scaffolded via `coach practices`.
 - **Spec templates** ship at `content/templates/spec/` (`README` + `_template/{purpose,design,acceptance}.md` + `briefs/README.md`), scaffolded via `coach spec-init` then `coach spec <slug>`. Slug-named, not numbered (specs are features, not point-in-time decisions).
 - **`specs/` bootstrapped on agentry itself** via `coach spec-init` — the repo now ships its own `specs/README.md` and `specs/_template/`.
-- **First per-feature spec implemented:** `specs/test-suite/` (Status: Active). vitest wired (`pretest` builds dist; `npm test` runs the suite). 83 tests at ~1.2s — verb contract tests for list/doctor/add/upgrade/remove/coach, dispatch tests for index.ts (help/version/unknown-verb/missing-arg/upgrade id-vs-path disambiguation), unit tests for drift/lockfile (read/write round-trip + sha256 + sort + malformed-provide drop)/catalog (validation: bad TOML, bad semver, duplicate targets, unknown-id deps, cycles)/io/typeguards. Helpers at `tests/helpers/{cli,fixtures}.ts`.
+- **First per-feature spec implemented:** `specs/test-suite/` (Status: Active). vitest wired (`pretest` builds dist; `npm test` runs the suite). 119 tests at ~1.4s — verb contract tests for list/doctor/add/upgrade/remove/coach, dispatch tests for index.ts (help/version/unknown-verb/missing-arg/upgrade id-vs-path disambiguation), unit tests for drift/lockfile (read/write round-trip + overlay round-trip + sha256 + sort + malformed-provide drop)/catalog (validation: bad TOML, bad semver, duplicate targets, unknown-id deps, cycles)/overlays/merged-catalog/io/typeguards. Doctor covers orphaned-detection paths (registered overlay missing + bundled-removed). Overlay e2e at `tests/overlay-e2e.test.ts` runs the full lifecycle against `tests/fixtures/overlays/acme/`. Helpers at `tests/helpers/{cli,fixtures}.ts`.
 - **CI online:** `.github/workflows/ci.yml` runs `npm ci → typecheck → test` on push/PR to `main`. Single Ubuntu job, Node 22, npm cache keyed on `package-lock.json`, read-only permissions. Brief at `specs/test-suite/briefs/01-ci-workflow.md`.
 
 ## Next likely work
 
-Phase 3 implementation, in chunks:
+Phase 3 remaining:
 
-1. **`agentry.overlays.toml` parser + registration validation.** Read
-   the file, validate manifest fields, surface malformed entries the
-   same way the catalog loader does. No catalog wiring yet.
-2. **Overlay catalog loader.** Extend `loadCatalog` to merge bundled
-   + registered overlays with last-wins semantics. Update source
-   resolution to root each overlay's `[[provides]].source` against
-   its own root, not `CONTENT_DIR`.
-3. **`overlay` field in lockfile + orphaned `DriftKind`.** Lockfile
-   round-trip preserves the field; `doctor` reports orphaned when
-   the registered overlay is gone.
-4. **First overlay fixture in `tests/fixtures/`.** Drives
-   end-to-end add → doctor → upgrade → remove against an overlay
-   that ships one synthetic catalog entry. No external repo yet.
-5. **Phase 5 dogfood** — round-trip TeamPlanner once overlays work.
-   Still needs TeamPlanner access.
+1. ✅ `agentry.overlays.toml` parser + registration validation (`src/overlays.ts`).
+2. ✅ Overlay catalog loader — merged bundled + overlays with last-wins (`src/merged-catalog.ts`); per-entry `sourceRoot` so commands resolve overlay sources against the overlay's own root.
+3. ✅ `overlay` field in lockfile + `orphaned` `DriftKind`. Lockfile round-trips the field; `doctor` reports orphaned with reason (`overlay '<x>' is not registered` / `overlay '<x>' no longer ships entry` / `no longer in bundled catalog`).
+4. ✅ End-to-end overlay fixture at `tests/fixtures/overlays/acme/` — `tests/overlay-e2e.test.ts` covers list attribution, add → lockfile overlay field, doctor (installed and orphaned-after-deregistration), upgrade user-edit detection, upgrade --force restoring from overlay-rooted source, remove cleanup.
+5. **Overlay author docs.** A short README in `docs/` (or alongside ADR-0004) showing the file layout + the manifest contract.
+6. **Phase 5 dogfood** — round-trip TeamPlanner once overlays work. Still needs TeamPlanner access.
 
-Default next: **(1)**. Smallest contained change that proves the
-manifest schema before any catalog code touches it.
+Default next: **(5)**. The fixture proves the contract; docs let an overlay author reproduce it.
 
 ## Persistence note
 

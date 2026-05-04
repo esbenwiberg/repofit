@@ -1,9 +1,7 @@
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
+import { REPO_ROOT } from "./paths.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, "../..");
 const CLI_ENTRY = resolve(REPO_ROOT, "dist/index.js");
 
 export interface CliResult {

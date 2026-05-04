@@ -1,11 +1,17 @@
-import { activeEntries, loadCatalog } from "../catalog.js";
+import { activeEntries } from "../catalog.js";
+import { loadMergedCatalog } from "../merged-catalog.js";
+import {
+  printMalformedEntries,
+  printOverlayLoadErrors,
+} from "../warnings.js";
 
 export interface ListOptions {
+  cwd: string;
   showDeprecated: boolean;
 }
 
 export function runList(options: ListOptions): number {
-  const { entries, malformed } = loadCatalog();
+  const { entries, malformed, overlayLoadErrors } = loadMergedCatalog(options.cwd);
 
   const visible = options.showDeprecated ? entries : activeEntries(entries);
 
@@ -28,8 +34,9 @@ export function runList(options: ListOptions): number {
     const sorted = [...visible].sort((a, b) => a.id.localeCompare(b.id));
     for (const e of sorted) {
       const dep = e.deprecated_by ? ` (deprecated → ${e.deprecated_by})` : "";
+      const tag = e.overlay ? ` [overlay:${e.overlay}]` : "";
       console.log(
-        `${e.id.padEnd(idWidth)}  ${e.name.padEnd(nameWidth)}  ${e.description}${dep}`,
+        `${e.id.padEnd(idWidth)}  ${e.name.padEnd(nameWidth)}  ${e.description}${dep}${tag}`,
       );
     }
 
@@ -39,20 +46,8 @@ export function runList(options: ListOptions): number {
     );
   }
 
-  if (malformed.length > 0) {
-    console.warn("");
-    console.warn(
-      `${malformed.length} malformed entr${malformed.length === 1 ? "y" : "ies"} skipped:`,
-    );
-    for (const m of malformed) {
-      const tag = m.id ?? "(unparsed)";
-      console.warn(`  - ${tag} [${m.sourceFile}]`);
-      for (const err of m.errors) {
-        console.warn(`      • ${err}`);
-      }
-    }
-    return 1;
-  }
+  printOverlayLoadErrors(overlayLoadErrors);
+  printMalformedEntries(malformed);
 
-  return 0;
+  return malformed.length > 0 ? 1 : 0;
 }

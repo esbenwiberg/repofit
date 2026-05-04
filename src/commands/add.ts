@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadCatalog, type CatalogEntry, type Provide } from "../catalog.js";
-import { CONTENT_DIR } from "../paths.js";
+import { type CatalogEntry, type Provide } from "../catalog.js";
+import { loadMergedCatalog } from "../merged-catalog.js";
 import {
   ensureDirAndCopy,
   fileExists,
@@ -21,6 +21,10 @@ import {
   type Lockfile,
 } from "../lockfile.js";
 import { chooseConflictAction, confirm, isInteractive } from "../prompt.js";
+import {
+  printMalformedEntries,
+  printOverlayLoadErrors,
+} from "../warnings.js";
 
 export interface AddOptions {
   cwd: string;
@@ -62,14 +66,9 @@ const GLYPH: Record<Outcome, string> = {
 };
 
 export async function runAdd(opts: AddOptions): Promise<number> {
-  const { entries, malformed } = loadCatalog();
-  if (malformed.length > 0) {
-    console.warn(
-      `(warning: ${malformed.length} malformed catalog entr${
-        malformed.length === 1 ? "y" : "ies"
-      } skipped)`,
-    );
-  }
+  const { entries, malformed, overlayLoadErrors } = loadMergedCatalog(opts.cwd);
+  printOverlayLoadErrors(overlayLoadErrors);
+  printMalformedEntries(malformed);
 
   const target = entries.find((e) => e.id === opts.id);
   if (!target) {
@@ -144,7 +143,7 @@ async function recordInstalls(
         target: r.provide.target,
         source: r.provide.source,
         flavor: r.provide.flavor,
-        checksum: await sha256OfFile(resolve(CONTENT_DIR, r.provide.source)),
+        checksum: await sha256OfFile(resolve(entry.sourceRoot, r.provide.source)),
       })),
     );
 
@@ -156,6 +155,7 @@ async function recordInstalls(
       version: entry.version,
       installed_at: new Date().toISOString(),
       provides: merged,
+      ...(entry.overlay ? { overlay: entry.overlay } : {}),
     });
     touched = true;
   }
@@ -242,7 +242,7 @@ async function installEntry(
 ): Promise<ProvideResult[]> {
   const results: ProvideResult[] = [];
   for (const provide of entry.provides) {
-    const result = await installProvide(provide, opts, interactive);
+    const result = await installProvide(provide, entry.sourceRoot, opts, interactive);
     results.push(result);
     printProvideLine(result);
   }
@@ -251,6 +251,7 @@ async function installEntry(
 
 async function installProvide(
   p: Provide,
+  sourceRoot: string,
   opts: AddOptions,
   interactive: boolean,
 ): Promise<ProvideResult> {
@@ -261,7 +262,7 @@ async function installProvide(
     return { provide: p, outcome: "skipped-flavor", reason: "--no-recipe" };
   }
 
-  const src = resolve(CONTENT_DIR, p.source);
+  const src = resolve(sourceRoot, p.source);
   const dest = resolve(opts.cwd, p.target);
 
   if (!existsSync(src)) {

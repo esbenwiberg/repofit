@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach } from "vitest";
 
+export { ACME_OVERLAY_DIR, REPO_ROOT } from "./paths.js";
+
 const trackedDirs: string[] = [];
 
 afterEach(async () => {

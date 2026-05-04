@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { ensureDirAndWrite } from "./io.js";
 import { AGENTRY_VERSION } from "./version.js";
-import { pickString } from "./typeguards.js";
+import { pickOptionalString, pickString } from "./typeguards.js";
 import type { Flavor } from "./catalog.js";
 
 const LOCKFILE_NAME = "agentry.lock.toml";
@@ -28,6 +28,7 @@ export interface LockedEntry {
   version: string;
   installed_at: string;
   provides: LockedProvide[];
+  overlay?: string;
 }
 
 export interface Lockfile {
@@ -60,22 +61,26 @@ export async function readLockfile(cwd: string): Promise<Lockfile | null> {
       (e): e is Record<string, unknown> =>
         typeof e === "object" && e !== null && typeof (e as { id?: unknown }).id === "string",
     )
-    .map<LockedEntry>((e) => ({
-      id: pickString(e, "id"),
-      version: pickString(e, "version"),
-      installed_at: pickString(e, "installed_at"),
-      provides: Array.isArray(e.provides)
-        ? (e.provides as Record<string, unknown>[])
-            .filter((p) => typeof p === "object" && p !== null)
-            .map<LockedProvide>((p) => ({
-              target: pickString(p, "target"),
-              source: pickString(p, "source"),
-              flavor: p.flavor === "claude" ? "claude" : "agnostic",
-              checksum: pickString(p, "checksum"),
-            }))
-            .filter((p) => p.target !== "")
-        : [],
-    }));
+    .map<LockedEntry>((e) => {
+      const overlay = pickOptionalString(e, "overlay");
+      return {
+        id: pickString(e, "id"),
+        version: pickString(e, "version"),
+        installed_at: pickString(e, "installed_at"),
+        provides: Array.isArray(e.provides)
+          ? (e.provides as Record<string, unknown>[])
+              .filter((p) => typeof p === "object" && p !== null)
+              .map<LockedProvide>((p) => ({
+                target: pickString(p, "target"),
+                source: pickString(p, "source"),
+                flavor: p.flavor === "claude" ? "claude" : "agnostic",
+                checksum: pickString(p, "checksum"),
+              }))
+              .filter((p) => p.target !== "")
+          : [],
+        ...(overlay ? { overlay } : {}),
+      };
+    });
   return { installed };
 }
 

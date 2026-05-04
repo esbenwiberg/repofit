@@ -68,6 +68,47 @@ describe("lockfile read/write", () => {
     });
     expect(await readLockfile(cwd)).toBeNull();
   });
+
+  it("round-trips the overlay field when set", async () => {
+    const cwd = await makeRepoFixture();
+    const entry: LockedEntry = {
+      ...sampleEntry,
+      id: "from-overlay",
+      overlay: "acme",
+    };
+    const lf = upsertLockedEntry(emptyLockfile(), entry);
+    await writeLockfile(cwd, lf);
+    const restored = await readLockfile(cwd);
+    expect(restored!.installed[0]!.overlay).toBe("acme");
+  });
+
+  it("omits the overlay field for bundled entries", async () => {
+    const cwd = await makeRepoFixture();
+    const lf = upsertLockedEntry(emptyLockfile(), sampleEntry);
+    await writeLockfile(cwd, lf);
+    const restored = await readLockfile(cwd);
+    expect(restored!.installed[0]!.overlay).toBeUndefined();
+  });
+
+  it("drops a non-string overlay field on read", async () => {
+    const cwd = await makeRepoFixture({
+      "agentry.lock.toml": [
+        `[[installed]]`,
+        `id = "weird"`,
+        `version = "0.1.0"`,
+        `installed_at = "2026-01-01T00:00:00Z"`,
+        `overlay = 42`,
+        ``,
+        `[[installed.provides]]`,
+        `target = ".claude/x.md"`,
+        `source = "skills/x.md"`,
+        `flavor = "claude"`,
+        `checksum = "sha256:abc"`,
+      ].join("\n"),
+    });
+    const lf = await readLockfile(cwd);
+    expect(lf!.installed[0]!.overlay).toBeUndefined();
+  });
 });
 
 describe("sha256OfFile", () => {

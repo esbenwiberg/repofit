@@ -12,7 +12,7 @@ const HELP = `agentry ${AGENTRY_VERSION}
 Form your agentic readiness.
 
 Usage:
-  agentry list                       List catalog entries
+  agentry list [path]                List catalog entries (incl. overlays at path)
   agentry doctor [path]              Audit a repo's agent-readiness (default: cwd)
   agentry add <id> [path]            Install a catalog entry into a repo
   agentry upgrade [id] [path]        Refresh installed entries from the catalog
@@ -127,8 +127,10 @@ async function main(argv: readonly string[]): Promise<number> {
   }
 
   switch (verb) {
-    case "list":
-      return runList({ showDeprecated: flags.has("--show-deprecated") });
+    case "list": {
+      const cwd = positional[0] ?? process.cwd();
+      return runList({ cwd, showDeprecated: flags.has("--show-deprecated") });
+    }
     case "doctor": {
       const cwd = positional[0] ?? process.cwd();
       return runDoctor({ cwd });

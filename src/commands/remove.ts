@@ -138,5 +138,6 @@ async function applyRemoval(
     version: locked.version,
     installed_at: locked.installed_at,
     provides: kept,
+    ...(locked.overlay ? { overlay: locked.overlay } : {}),
   });
 }
