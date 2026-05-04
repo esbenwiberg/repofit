@@ -1,6 +1,6 @@
 # agentry — status
 
-*Last updated: 2026-05-04 — CI shipped (`.github/workflows/ci.yml` runs typecheck + tests on push/PR).*
+*Last updated: 2026-05-04 — CI shipped + io.ts unit tests (49 tests, ~1.2s).*
 
 Current snapshot of where the build is against the original 7-phase plan
 (`~/.claude/plans/lets-brainstorm-the-idea-cheerful-pelican.md`). Update as
@@ -44,7 +44,7 @@ phases close.
 - **`PRACTICES.md` template** ships at `content/templates/PRACTICES.template.md`, scaffolded via `coach practices`.
 - **Spec templates** ship at `content/templates/spec/` (`README` + `_template/{purpose,design,acceptance}.md` + `briefs/README.md`), scaffolded via `coach spec-init` then `coach spec <slug>`. Slug-named, not numbered (specs are features, not point-in-time decisions).
 - **`specs/` bootstrapped on agentry itself** via `coach spec-init` — the repo now ships its own `specs/README.md` and `specs/_template/`.
-- **First per-feature spec implemented:** `specs/test-suite/` (Status: Active). vitest wired (`pretest` builds dist; `npm test` runs the suite). 37 tests at ~650ms — verb contract tests for list/doctor/add/upgrade/remove/coach, unit tests for drift/lockfile/catalog (real bundled catalog + fixture catalogs for cycles & malformed entries). Helpers at `tests/helpers/{cli,fixtures}.ts`.
+- **First per-feature spec implemented:** `specs/test-suite/` (Status: Active). vitest wired (`pretest` builds dist; `npm test` runs the suite). 49 tests at ~1.2s — verb contract tests for list/doctor/add/upgrade/remove/coach, unit tests for drift/lockfile/catalog/io (real bundled catalog + fixture catalogs for cycles & malformed entries). Helpers at `tests/helpers/{cli,fixtures}.ts`.
 - **CI online:** `.github/workflows/ci.yml` runs `npm ci → typecheck → test` on push/PR to `main`. Single Ubuntu job, Node 22, npm cache keyed on `package-lock.json`, read-only permissions. Brief at `specs/test-suite/briefs/01-ci-workflow.md`.
 
 ## Next likely work
