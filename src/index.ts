@@ -133,16 +133,14 @@ async function main(argv: readonly string[]): Promise<number> {
       });
     }
     case "upgrade": {
-      // Heuristic: a path-looking positional[0] (./, ../, /, ~) is the cwd, not an id.
+      // Disambiguate `agentry upgrade <id>` from `agentry upgrade <path>` by
+      // matching the catalog id grammar — anything else is treated as cwd.
       const first = positional[0];
-      const looksLikePath =
-        first !== undefined &&
-        (first.startsWith("/") ||
-          first.startsWith("./") ||
-          first.startsWith("../") ||
-          first.startsWith("~"));
-      const id = looksLikePath ? undefined : first;
-      const cwd = looksLikePath ? first : (positional[1] ?? process.cwd());
+      const isId = first !== undefined && /^[a-z][a-z0-9-]*$/.test(first);
+      const id = isId ? first : undefined;
+      const cwd = isId
+        ? (positional[1] ?? process.cwd())
+        : (first ?? process.cwd());
       return runUpgrade({
         cwd,
         id,

@@ -1,15 +1,18 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadCatalog, type CatalogEntry, type Layer } from "../catalog.js";
+import {
+  activeEntries,
+  loadCatalog,
+  type CatalogEntry,
+  type Layer,
+} from "../catalog.js";
 import { CONTENT_DIR } from "../paths.js";
-import { filesIdentical, isToolAvailable } from "../io.js";
+import { isToolAvailable } from "../io.js";
+import { classifyProvideDrift, type DriftKind } from "../drift.js";
 import {
   findLockedEntry,
-  findLockedProvide,
   readLockfile,
-  sha256OfFile,
   type Lockfile,
-  type LockedEntry,
 } from "../lockfile.js";
 
 export interface DoctorOptions {
@@ -17,11 +20,11 @@ export interface DoctorOptions {
 }
 
 type Status = "installed" | "missing" | "partial";
-type DriftKind = "user-edit" | "out-of-date";
+type ReportedDriftKind = Exclude<DriftKind, "missing">;
 
 interface ProvideDrift {
   target: string;
-  kind: DriftKind;
+  kind: ReportedDriftKind;
 }
 
 interface VersionDrift {
@@ -67,9 +70,9 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
   const lockfile = await readLockfile(options.cwd);
 
   const reports = await Promise.all(
-    entries
-      .filter((e) => !e.deprecated_by)
-      .map((entry) => buildReport(entry, options.cwd, lockfile)),
+    activeEntries(entries).map((entry) =>
+      buildReport(entry, options.cwd, lockfile),
+    ),
   );
 
   console.log(`agentry doctor — auditing ${options.cwd}`);
@@ -132,13 +135,17 @@ async function buildReport(
 
   for (const p of entry.provides) {
     const dest = resolve(cwd, p.target);
+    const src = resolve(CONTENT_DIR, p.source);
     if (existsSync(dest)) {
       providedPresent.push(p.target);
-      const src = resolve(CONTENT_DIR, p.source);
-      driftChecks.push(classifyDrift(p.target, src, dest, lockedEntry));
     } else {
       providedMissing.push(p.target);
     }
+    driftChecks.push(
+      classifyProvideDrift(src, dest, p.target, lockedEntry).then((kind) =>
+        kind && kind !== "missing" ? { target: p.target, kind } : null,
+      ),
+    );
   }
 
   const driftResults = await Promise.all(driftChecks);
@@ -171,25 +178,6 @@ async function buildReport(
     missingTools,
     versionDrift,
   };
-}
-
-async function classifyDrift(
-  target: string,
-  src: string,
-  dest: string,
-  lockedEntry: LockedEntry | undefined,
-): Promise<ProvideDrift | null> {
-  if (!existsSync(src)) return null;
-  if (await filesIdentical(src, dest)) return null;
-
-  const locked = findLockedProvide(lockedEntry, target);
-  if (locked) {
-    const destHash = await sha256OfFile(dest);
-    if (destHash === locked.checksum) {
-      return { target, kind: "out-of-date" };
-    }
-  }
-  return { target, kind: "user-edit" };
 }
 
 function groupByLayer(reports: Report[]): Map<Layer, Report[]> {

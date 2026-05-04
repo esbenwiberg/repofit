@@ -91,6 +91,10 @@ function isRepoRelative(p: string): boolean {
   return true;
 }
 
+export function activeEntries(entries: CatalogEntry[]): CatalogEntry[] {
+  return entries.filter((e) => !e.deprecated_by);
+}
+
 export function loadCatalog(): CatalogLoadResult {
   const entries: CatalogEntry[] = [];
   const malformed: MalformedEntry[] = [];

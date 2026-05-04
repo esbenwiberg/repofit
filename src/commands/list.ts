@@ -1,4 +1,4 @@
-import { loadCatalog, type CatalogEntry } from "../catalog.js";
+import { activeEntries, loadCatalog, type CatalogEntry } from "../catalog.js";
 
 export interface ListOptions {
   showDeprecated: boolean;
@@ -7,9 +7,7 @@ export interface ListOptions {
 export function runList(options: ListOptions): number {
   const { entries, malformed } = loadCatalog();
 
-  const visible = options.showDeprecated
-    ? entries
-    : entries.filter((e) => !e.deprecated_by);
+  const visible = options.showDeprecated ? entries : activeEntries(entries);
 
   if (visible.length === 0 && malformed.length === 0) {
     console.log("No catalog entries found.");

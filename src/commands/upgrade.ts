@@ -1,11 +1,15 @@
-import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadCatalog, type CatalogEntry, type Provide } from "../catalog.js";
+import {
+  activeEntries,
+  loadCatalog,
+  type CatalogEntry,
+  type Provide,
+} from "../catalog.js";
 import { CONTENT_DIR } from "../paths.js";
-import { ensureDirAndCopy, filesIdentical } from "../io.js";
+import { ensureDirAndCopy } from "../io.js";
+import { classifyProvideDrift, type DriftKind } from "../drift.js";
 import {
   findLockedEntry,
-  findLockedProvide,
   mergeLockedProvides,
   readLockfile,
   sha256OfFile,
@@ -25,29 +29,46 @@ export interface UpgradeOptions {
   nonInteractive: boolean;
 }
 
-type Action =
-  | "refresh-out-of-date"
-  | "force-user-edit"
-  | "keep-user-edit"
-  | "write-missing";
-
-const GLYPH: Record<Action, string> = {
-  "refresh-out-of-date": "~",
-  "force-user-edit": "!",
-  "keep-user-edit": "·",
-  "write-missing": "+",
-};
-
 interface ProvideAction {
   provide: Provide;
-  action: Action;
+  kind: DriftKind;
 }
 
 interface EntryPlan {
   entry: CatalogEntry;
   locked: LockedEntry;
-  reasons: string[];
   actions: ProvideAction[];
+}
+
+function actionLabel(kind: DriftKind, force: boolean): string {
+  if (kind === "out-of-date") return "refresh-out-of-date";
+  if (kind === "missing") return "write-missing";
+  return force ? "force-user-edit" : "keep-user-edit";
+}
+
+function actionGlyph(kind: DriftKind, force: boolean): string {
+  if (kind === "out-of-date") return "~";
+  if (kind === "missing") return "+";
+  return force ? "!" : "·";
+}
+
+function willWrite(kind: DriftKind, force: boolean): boolean {
+  return kind !== "user-edit" || force;
+}
+
+function planReasons(plan: EntryPlan): string[] {
+  const reasons: string[] = [];
+  if (plan.locked.version !== plan.entry.version) {
+    reasons.push(`v${plan.locked.version}→${plan.entry.version}`);
+  }
+  const counts = { "out-of-date": 0, "user-edit": 0, missing: 0 } satisfies Record<DriftKind, number>;
+  for (const a of plan.actions) counts[a.kind] += 1;
+  if (counts["out-of-date"] > 0) reasons.push(`${counts["out-of-date"]} out-of-date`);
+  if (counts["user-edit"] > 0) {
+    reasons.push(`${counts["user-edit"]} user-edit${counts["user-edit"] === 1 ? "" : "s"}`);
+  }
+  if (counts.missing > 0) reasons.push(`${counts.missing} missing`);
+  return reasons;
 }
 
 export async function runUpgrade(opts: UpgradeOptions): Promise<number> {
@@ -62,9 +83,7 @@ export async function runUpgrade(opts: UpgradeOptions): Promise<number> {
 
   const { entries } = loadCatalog();
   const allPlans = await Promise.all(
-    entries
-      .filter((e) => !e.deprecated_by)
-      .map((e) => buildPlan(e, lf, opts.cwd, opts.force)),
+    activeEntries(entries).map((e) => buildPlan(e, lf, opts.cwd)),
   );
   let plans = allPlans.filter((p): p is EntryPlan => p !== null);
 
@@ -85,10 +104,10 @@ export async function runUpgrade(opts: UpgradeOptions): Promise<number> {
 
   console.log(`agentry upgrade${opts.dryRun ? " (dry-run)" : ""}`);
   for (const p of plans) {
-    console.log(`\n  ${p.entry.id} — ${p.reasons.join(", ")}`);
+    console.log(`\n  ${p.entry.id} — ${planReasons(p).join(", ")}`);
     for (const a of p.actions) {
       console.log(
-        `    ${GLYPH[a.action]} ${a.provide.target.padEnd(50)} ${a.action}`,
+        `    ${actionGlyph(a.kind, opts.force)} ${a.provide.target.padEnd(50)} ${actionLabel(a.kind, opts.force)}`,
       );
     }
   }
@@ -103,7 +122,7 @@ export async function runUpgrade(opts: UpgradeOptions): Promise<number> {
 
   let updatedLf: Lockfile = lf;
   for (const plan of plans) {
-    updatedLf = await applyPlan(plan, opts.cwd, updatedLf);
+    updatedLf = await applyPlan(plan, opts.cwd, opts.force, updatedLf);
   }
   await writeLockfile(opts.cwd, updatedLf);
   console.log("\nupgrade complete.");
@@ -114,76 +133,44 @@ async function buildPlan(
   entry: CatalogEntry,
   lf: Lockfile,
   cwd: string,
-  force: boolean,
 ): Promise<EntryPlan | null> {
   const locked = findLockedEntry(lf, entry.id);
   if (!locked) return null;
 
-  const actions: ProvideAction[] = [];
-  for (const provide of entry.provides) {
-    const dest = resolve(cwd, provide.target);
-    const src = resolve(CONTENT_DIR, provide.source);
-    if (!existsSync(src)) continue;
-
-    if (!existsSync(dest)) {
-      actions.push({ provide, action: "write-missing" });
-      continue;
-    }
-    if (await filesIdentical(src, dest)) continue;
-
-    const lockedP = findLockedProvide(locked, provide.target);
-    if (lockedP) {
-      const destHash = await sha256OfFile(dest);
-      if (destHash === lockedP.checksum) {
-        actions.push({ provide, action: "refresh-out-of-date" });
-        continue;
-      }
-    }
-    actions.push({
-      provide,
-      action: force ? "force-user-edit" : "keep-user-edit",
-    });
-  }
+  const classified = await Promise.all(
+    entry.provides.map(async (provide): Promise<ProvideAction | null> => {
+      const dest = resolve(cwd, provide.target);
+      const src = resolve(CONTENT_DIR, provide.source);
+      const kind = await classifyProvideDrift(src, dest, provide.target, locked);
+      return kind === null ? null : { provide, kind };
+    }),
+  );
+  const actions = classified.filter((a): a is ProvideAction => a !== null);
 
   const versionDrift = locked.version !== entry.version;
   if (actions.length === 0 && !versionDrift) return null;
 
-  const reasons: string[] = [];
-  if (versionDrift) reasons.push(`v${locked.version}→${entry.version}`);
-  const refresh = actions.filter((a) => a.action === "refresh-out-of-date").length;
-  const userEdits = actions.filter((a) => a.action !== "refresh-out-of-date" && a.action !== "write-missing").length;
-  const missing = actions.filter((a) => a.action === "write-missing").length;
-  if (refresh > 0) reasons.push(`${refresh} out-of-date`);
-  if (userEdits > 0) reasons.push(`${userEdits} user-edit${userEdits === 1 ? "" : "s"}`);
-  if (missing > 0) reasons.push(`${missing} missing`);
-  if (reasons.length === 0) reasons.push("metadata only");
-
-  return { entry, locked, reasons, actions };
+  return { entry, locked, actions };
 }
 
 async function applyPlan(
   plan: EntryPlan,
   cwd: string,
+  force: boolean,
   lf: Lockfile,
 ): Promise<Lockfile> {
   const fresh: LockedProvide[] = [];
   for (const a of plan.actions) {
+    if (!willWrite(a.kind, force)) continue;
     const src = resolve(CONTENT_DIR, a.provide.source);
     const dest = resolve(cwd, a.provide.target);
-
-    if (
-      a.action === "refresh-out-of-date" ||
-      a.action === "force-user-edit" ||
-      a.action === "write-missing"
-    ) {
-      await ensureDirAndCopy(src, dest);
-      fresh.push({
-        target: a.provide.target,
-        source: a.provide.source,
-        flavor: a.provide.flavor,
-        checksum: await sha256OfFile(src),
-      });
-    }
+    await ensureDirAndCopy(src, dest);
+    fresh.push({
+      target: a.provide.target,
+      source: a.provide.source,
+      flavor: a.provide.flavor,
+      checksum: await sha256OfFile(src),
+    });
   }
 
   const merged = mergeLockedProvides(plan.locked.provides, fresh);
