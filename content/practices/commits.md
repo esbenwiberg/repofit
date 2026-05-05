@@ -1,6 +1,6 @@
 # Commit Workflow
 
-Structured commit workflow with conventional commits and changelog fragments.
+Structured commit workflow: inspect, group, classify, propose, commit.
 
 ## When to use
 
@@ -12,7 +12,7 @@ Structured commit workflow with conventional commits and changelog fragments.
 
 ```
 1. Inspect changes  →  2. Group + classify  →  3. Suggest plan  →
-4. Create fragments  →  5. Stage + commit  →  6. Offer review/PR
+4. Stage + commit  →  5. Update changelog (if used)  →  6. Offer review/PR
 ```
 
 ## Steps
@@ -42,7 +42,7 @@ Combine when:
 
 ### 3. Classify each commit
 
-| Type | Use for | Fragment? |
+| Type | Use for | User-visible? |
 |---|---|---|
 | `feat` | New user-facing capability | yes |
 | `fix` | Bug fix in shipped behaviour | yes |
@@ -57,6 +57,10 @@ Combine when:
 | `ci` | CI/CD config | no |
 | `chore` | Tooling, dotfiles, configs that don't affect runtime | no |
 
+The "user-visible?" column is what should land in release notes /
+changelog if the project keeps one. Projects pick the changelog
+mechanism that fits — see step 5.
+
 **Heuristic for `chore`:** if the change is in `.github/`, `.githooks/`,
 editor config, or developer tooling and **does not** affect what users
 ship, it's `chore`.
@@ -70,57 +74,46 @@ Commit 1: feat(api): add user authentication endpoint
   Files:
     - src/auth/login.ts
     - src/auth/login.test.ts
-    - .changes/add-user-auth.feat.md (will create)
-  Fragment description: "Add user authentication endpoint with JWT support."
+  Note: user-visible — record in changelog per project convention.
 
 Commit 2: docs(readme): document new auth endpoint
   Files:
     - README.md
-  No fragment (docs).
+  Note: docs only — no changelog entry needed.
 ```
 
 Ask: *Approve, modify, or split differently?* Don't proceed without consent.
 
-### 5. Create changelog fragments (mandatory for fragment-required types)
-
-For each `feat`/`fix`/`refactor`/`perf`/`breaking`/`security`/`build`
-commit, create a fragment **before** committing and stage it with the
-code:
+### 4. Execute
 
 ```bash
-_scripts/changelog/create-fragment.sh \
-  -t feat \
-  -s api \
-  -n add-user-auth \
-  -d "Add user authentication endpoint with JWT support."
-```
-
-Or manually create `.changes/<name>.<type>.md`:
-
-```markdown
----
-type: FEAT
-scope: api
----
-
-Add user authentication endpoint with JWT support.
-```
-
-The `commit-msg` hook rejects fragment-required commits without a fragment.
-**Never use `--no-verify`** to bypass — fix the underlying gap.
-
-### 6. Execute
-
-```bash
-git add src/auth/login.ts src/auth/login.test.ts .changes/add-user-auth.feat.md
+git add src/auth/login.ts src/auth/login.test.ts
 git commit -m "feat(api): add user authentication endpoint"
 ```
 
-If the hook rejects, read the message — usually it's a missing fragment or
-a malformed subject. Fix and re-stage. Don't `--no-verify` and don't
-`--amend` if a hook failure could mean the commit didn't happen.
+If the project's `commit-msg` hook rejects the commit, read the message
+— usually it's a malformed subject or a missing prerequisite. Fix and
+re-stage. **Never `--no-verify`** and don't `--amend` if the hook
+failure means the commit didn't happen.
 
-### 7. Offer review and PR
+### 5. Update the changelog (if the project uses one)
+
+Different projects use different mechanisms — pick the one that fits
+this repo, don't impose. Common shapes:
+
+| Mechanism | Where to look |
+|---|---|
+| Fragment-based (one file per change) | `.changes/`, `.changeset/` directories; helper script in `_scripts/` |
+| Auto-generated from commits | `release-please`, `semantic-release`, `conventional-changelog` configs |
+| Manually maintained | `CHANGELOG.md` at the root |
+| Release-notes only | GitHub Releases / GitLab tags; nothing in the repo |
+| None | Apps and internal tools often skip it |
+
+If the project enforces a mechanism via `commit-msg` hook, do what the
+hook expects and stage the changelog artifact alongside the code. If
+unsure, ask before assuming.
+
+### 6. Offer review and PR
 
 After commits succeed, offer the user:
 
@@ -138,8 +131,8 @@ After commits succeed, offer the user:
 
 ## Breaking changes
 
-Add `BREAKING CHANGE:` to the commit body and ship a `.breaking.md`
-fragment:
+Add `BREAKING CHANGE:` to the commit body. If the project keeps a
+changelog, make sure the breaking change is recorded there too.
 
 ```
 breaking(api): redesign auth flow

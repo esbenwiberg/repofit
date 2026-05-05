@@ -11,16 +11,18 @@ Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `build`,
 
 Full spec: `.claude/skills/commits/rules.md`
 
-## Changelog fragments
+## Changelog
 
-**Required** for: `feat`, `fix`, `refactor`, `perf`, `build`, `breaking`, `security`.
-**Skip** for: `test`, `docs`, `style`, `ci`, `chore`.
+If the project keeps a changelog, record user-visible commits there per
+the project's mechanism (fragments under `.changes/` or `.changeset/`,
+auto-generated from commits via `release-please` / `semantic-release`,
+manually-edited `CHANGELOG.md`, or release notes only).
 
-Create with `_scripts/changelog/create-fragment.sh` (or the project's
-equivalent helper). The `commit-msg` hook enforces this — **do NOT use
-`--no-verify`** to bypass.
+User-visible types: `feat`, `fix`, `refactor`, `perf`, `breaking`, `security`, `build`.
+Internal types (skip changelog): `test`, `docs`, `style`, `ci`, `chore`.
 
-Full spec: `.claude/skills/changelog/rules.md`
+If the project's `commit-msg` hook enforces a particular mechanism, do
+what the hook expects — **never `--no-verify`** to bypass.
 
 ## Pull requests
 

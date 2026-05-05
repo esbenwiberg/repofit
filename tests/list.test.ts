@@ -9,7 +9,7 @@ describe("agentry list", () => {
     expect(res.code).toBe(0);
     expect(res.stdout).toMatch(/^ID\s+NAME\s+DESCRIPTION/m);
     expect(res.stdout).toContain("commits");
-    expect(res.stdout).toContain("changelog");
+    expect(res.stdout).toContain("code-review");
   });
 
   it("--show-deprecated changes the visible set", async () => {

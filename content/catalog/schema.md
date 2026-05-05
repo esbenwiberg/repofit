@@ -24,7 +24,7 @@ index file.
 ```toml
 id = "commits"
 name = "Commit workflow"
-description = "Conventional commits with changelog fragments and a structured workflow."
+description = "Structured commit format and workflow."
 version = "0.1.0"
 
 layers = ["harness", "conventions"]
@@ -130,7 +130,7 @@ auto-install them.
 | Field | Type | Notes |
 |---|---|---|
 | `git` | bool | If `true`, the target repo must be a git repository. |
-| `entries` | string[] | Other catalog entry `id`s this entry depends on (e.g., `commits` requires `changelog`). The installer offers to install them too. |
+| `entries` | string[] | Other catalog entry `id`s this entry depends on. The installer offers to install them too. |
 | `tools` | string[] | External CLI tools the user should have for the installed content to be useful (e.g., `gh`, `gitleaks`). Soft check; warns but doesn't block. |
 
 ### Lifecycle (optional)

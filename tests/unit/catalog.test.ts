@@ -48,8 +48,8 @@ describe("loadCatalog (real bundled catalog)", () => {
     expect(malformed).toEqual([]);
     const ids = entries.map((e) => e.id).sort();
     expect(ids).toContain("commits");
-    expect(ids).toContain("changelog");
     expect(ids).toContain("code-review");
+    expect(ids).toContain("pull-requests");
   });
 
   it("activeEntries excludes deprecated entries", () => {
@@ -119,7 +119,7 @@ describe("loadCatalog (fixture catalog)", () => {
   it("rejects duplicate targets within a single entry", async () => {
     const { filename, content } = entryToml("dup-targets", {
       extraProvides: [
-        { source: "practices/changelog.md", target: ".claude/skills/dup-targets.md" },
+        { source: "practices/commits.md", target: ".claude/skills/dup-targets.md" },
       ],
     });
     const dir = await makeRepoFixture({ [filename]: content });

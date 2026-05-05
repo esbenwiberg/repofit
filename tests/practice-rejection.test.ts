@@ -12,9 +12,9 @@ describe("practice entries are not installable", () => {
     expect(res.stderr).toContain("overlay");
   });
 
-  it("agentry add changelog → exits 1", async () => {
+  it("agentry add code-review → exits 1", async () => {
     const cwd = await makeGitRepoFixture();
-    const res = await runCli(["add", "changelog", "--non-interactive"], { cwd });
+    const res = await runCli(["add", "code-review", "--non-interactive"], { cwd });
     expect(res.code).toBe(1);
     expect(res.stderr).toContain("practice");
   });

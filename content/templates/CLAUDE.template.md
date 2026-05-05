@@ -44,7 +44,6 @@
 | Command | Description |
 |---|---|
 | `/commit` | Analyse changes and suggest commits |
-| `/changelog` | Create a changelog fragment |
 | `/review` | Structured code review |
 | `/pr` | Open a pull request |
 

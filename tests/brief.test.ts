@@ -76,8 +76,8 @@ describe("agentry brief", () => {
     const body = await readFile(join(bundle, "instructions.md"), "utf8");
     expect(body).toContain("## Practice library");
     expect(body).toContain("(`commits`)");
-    expect(body).toContain("(`changelog`)");
+    expect(body).toContain("(`code-review`)");
     expect(existsSync(join(bundle, "practices", "commits.md"))).toBe(true);
-    expect(existsSync(join(bundle, "practices", "changelog.md"))).toBe(true);
+    expect(existsSync(join(bundle, "practices", "code-review.md"))).toBe(true);
   });
 });

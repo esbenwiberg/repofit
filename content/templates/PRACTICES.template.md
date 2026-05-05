@@ -24,15 +24,17 @@ The `commit-msg` hook enforces format and fragment requirements.
 
 Full spec: `.claude/skills/commits/rules.md`
 
-## Changelog fragments
+## Changelog
 
-Required for: `feat`, `fix`, `refactor`, `perf`, `breaking`, `security`, `build`.
-Skip for: `test`, `docs`, `style`, `ci`, `chore`.
+> Pick one and document it: fragment-based (one file per change),
+> auto-generated from commits (`release-please` / `semantic-release` /
+> `conventional-changelog`), manually-maintained `CHANGELOG.md`,
+> release-notes only, or none. Drop this section if the project doesn't
+> keep a changelog.
 
-Create with `_scripts/changelog/create-fragment.sh`. Spec:
-`.claude/skills/changelog/rules.md`.
-
-**Never edit `CHANGELOG.md` directly** — it's generated from fragments.
+User-visible types that should land in the changelog: `feat`, `fix`,
+`refactor`, `perf`, `breaking`, `security`, `build`. Internal types
+(skip): `test`, `docs`, `style`, `ci`, `chore`.
 
 ## Pull requests
 
