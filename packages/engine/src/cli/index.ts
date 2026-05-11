@@ -1,9 +1,25 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { VERSION } from "../index.js";
+import type { Tier } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
 import { check, type OutputMode } from "./check.js";
 import { explain } from "./explain.js";
+
+const VALID_TIERS = new Set<Tier>(["static", "derived", "historical", "executed", "reasoned"]);
+
+function parseInclude(value: string, previous: Tier[] = []): Tier[] {
+  const tokens = value
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  for (const t of tokens) {
+    if (!VALID_TIERS.has(t as Tier)) {
+      throw new Error(`--include: unknown tier '${t}' (valid: ${[...VALID_TIERS].join(", ")})`);
+    }
+  }
+  return [...previous, ...(tokens as Tier[])];
+}
 
 const program = new Command();
 
@@ -23,6 +39,12 @@ program
   .option("--json", "Emit the full report as JSON to stdout.")
   .option("--ci", "Emit a CI-friendly verdict line; respects GITHUB_ACTIONS env.")
   .option("--artifact <path>", "With --ci, also write the JSON report to this path.")
+  .option(
+    "--include <tier>",
+    "Opt-in tier (executed, reasoned). Comma-separate or repeat to add multiple.",
+    parseInclude,
+    [] as Tier[],
+  )
   .action(
     async (opts: {
       probe?: string;
@@ -33,6 +55,7 @@ program
       json?: boolean;
       ci?: boolean;
       artifact?: string;
+      include: Tier[];
     }) => {
       if (opts.json && opts.ci) {
         console.error("repofit: --json and --ci are mutually exclusive.");
@@ -50,6 +73,7 @@ program
           dirty: opts.dirty,
           output,
           artifact: opts.artifact,
+          include: opts.include,
         });
         process.exit(exitCode);
       } catch (err) {

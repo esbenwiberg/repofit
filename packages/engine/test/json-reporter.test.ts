@@ -118,4 +118,12 @@ describe("json reporter", () => {
     const report = buildReport(inputFrom({ results }));
     expect(report.probes.map((p) => p.id)).toEqual(["apple", "zebra"]);
   });
+
+  test("cost block only appears when executed tier ran", () => {
+    const withoutCost = buildReport(inputFrom({}));
+    expect(withoutCost.cost).toBeUndefined();
+
+    const withCost = buildReport(inputFrom({ cost: { executedMs: 12_345 } }));
+    expect(withCost.cost).toEqual({ executedMs: 12_345 });
+  });
 });

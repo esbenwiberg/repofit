@@ -3,11 +3,16 @@ import ignore from "ignore";
 import { score as scoreReading } from "../scorer/index.js";
 import type {
   AgentConfigEvidence,
+  BranchProtectionResult,
   CiWorkflowsEvidence,
+  CommandRun,
+  CommandSpec,
+  CommandsEvidence,
   CommitHistoryEvidence,
   EvidenceMap,
   FilesEvidence,
   Fixture,
+  GithubApiEvidence,
   GitignoreEvidence,
   GuidanceFile,
   NodePackageEvidence,
@@ -61,6 +66,8 @@ function hydrateFixtureEvidence(raw: Record<string, unknown>): EvidenceMap {
     size_stats: hydrateSizeStats(raw.size_stats),
     ci_workflows: hydrateCiWorkflows(raw.ci_workflows),
     commit_history: hydrateCommitHistory(raw.commit_history),
+    commands: hydrateCommands(raw.commands),
+    github_api: hydrateGithubApi(raw.github_api),
   };
 }
 
@@ -153,4 +160,39 @@ function hydrateCommitHistory(raw: unknown): CommitHistoryEvidence {
   }
   const obj = raw as Partial<CommitHistoryEvidence>;
   return { available: obj.available ?? true, commits: obj.commits ?? [] };
+}
+
+function hydrateGithubApi(raw: unknown): GithubApiEvidence {
+  const fixture = (raw ?? null) as { branchProtection?: BranchProtectionResult } | null;
+  return {
+    async branchProtection(): Promise<BranchProtectionResult> {
+      return fixture?.branchProtection ?? { kind: "unavailable", reason: "fixture: not provided" };
+    },
+  };
+}
+
+type CommandFixture = Partial<CommandRun> & { argv: string[] };
+
+function hydrateCommands(raw: unknown): CommandsEvidence {
+  const entries = Array.isArray(raw) ? (raw as CommandFixture[]) : [];
+  let totalMs = 0;
+  let runs = 0;
+  return {
+    async run(spec: CommandSpec): Promise<CommandRun> {
+      const key = spec.argv.join(" ");
+      const match = entries.find((e) => e.argv.join(" ") === key);
+      const result: CommandRun = {
+        exitCode: match?.exitCode ?? null,
+        durationMs: match?.durationMs ?? 0,
+        stdout: match?.stdout ?? "",
+        stderr: match?.stderr ?? "",
+        timedOut: match?.timedOut ?? false,
+      };
+      totalMs += result.durationMs;
+      runs += 1;
+      return result;
+    },
+    totalMs: () => totalMs,
+    runCount: () => runs,
+  };
 }

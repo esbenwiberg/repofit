@@ -12,7 +12,8 @@ import { effectiveDimensions } from "../loader/effective-dimensions.js";
 import { renderCi } from "../reporters/ci.js";
 import { renderHuman } from "../reporters/human-minimal.js";
 import { type ReportInput, renderJson } from "../reporters/json.js";
-import { runProbes } from "../runner/tiered.js";
+import { DEFAULT_TIERS, runProbesDetailed } from "../runner/tiered.js";
+import type { Tier } from "../sdk/types.js";
 import { gitHeadCommit } from "../util/git.js";
 import { detectDrift } from "../verdict/drift.js";
 import { computeVerdict } from "../verdict/index.js";
@@ -28,6 +29,7 @@ export type CheckOptions = {
   dirty?: boolean;
   output?: OutputMode;
   artifact?: string | undefined;
+  include?: Tier[];
 };
 
 export async function check(opts: CheckOptions): Promise<number> {
@@ -55,7 +57,12 @@ export async function check(opts: CheckOptions): Promise<number> {
     return 2;
   }
 
-  const results = await runProbes(probes, evidence, { waivers: config.waivers });
+  const includeTiers = resolveIncludeTiers(opts.include, config);
+  const summary = await runProbesDetailed(probes, evidence, {
+    waivers: config.waivers,
+    includeTiers,
+  });
+  const results = summary.results;
 
   const dimensions = effectiveDimensions(corpus.dimensions, config);
   const aggregated = aggregate(results, dimensions);
@@ -77,9 +84,11 @@ export async function check(opts: CheckOptions): Promise<number> {
   const verdict = computeVerdict(aggregated, config, baseline);
   const drift = detectDrift(corpus, baseline);
   const output = opts.output ?? "human";
+  const executedMs = summary.tierWallClockMs.executed;
+  const cost = executedMs > 0 ? { executedMs } : undefined;
 
   if (output === "human") {
-    console.log(renderHuman({ aggregated, results, verdict, drift }));
+    console.log(renderHuman({ aggregated, results, verdict, drift, ...(cost ? { cost } : {}) }));
     return verdict.pass ? 0 : 1;
   }
 
@@ -98,6 +107,7 @@ export async function check(opts: CheckOptions): Promise<number> {
     baseline: baseline
       ? { fitness: baseline.fitness, dimensions: baseline.dimensions, probes: baseline.probes }
       : null,
+    ...(cost ? { cost } : {}),
   };
 
   if (output === "json") {
@@ -110,6 +120,15 @@ export async function check(opts: CheckOptions): Promise<number> {
   console.log(rendered.stdout);
   for (const line of rendered.annotations) console.log(line);
   return verdict.pass ? 0 : 1;
+}
+
+function resolveIncludeTiers(
+  cliInclude: Tier[] | undefined,
+  config: ProjectConfig,
+): ReadonlySet<Tier> {
+  const extra = cliInclude ?? config.gate.include ?? [];
+  if (extra.length === 0) return DEFAULT_TIERS;
+  return new Set<Tier>([...DEFAULT_TIERS, ...extra]);
 }
 
 function fmt(n: number | null): string {

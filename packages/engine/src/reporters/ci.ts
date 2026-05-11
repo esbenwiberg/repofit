@@ -23,7 +23,8 @@ export async function renderCi(input: CiRenderInput): Promise<CiRender> {
   const baselineText = baseline === null ? "no baseline" : `baseline ${baseline}`;
   const deltaText = report.fitness.delta === null ? "" : `, ${signed(report.fitness.delta)}`;
 
-  const stdout = `repofit: fitness ${score} (${baselineText}${deltaText})  ${report.config.gateMode}  ${verdictText}`;
+  const costText = report.cost ? `  executed ${(report.cost.executedMs / 1000).toFixed(1)}s` : "";
+  const stdout = `repofit: fitness ${score} (${baselineText}${deltaText})  ${report.config.gateMode}  ${verdictText}${costText}`;
 
   const annotations = input.githubActions ? githubAnnotations(input.results) : [];
 

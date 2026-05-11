@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { runProbes } from "../src/runner/tiered.js";
 import type { EvidenceMap, Probe, Tier } from "../src/sdk/types.js";
 
+const ALL_TIERS = new Set<Tier>(["static", "derived", "historical", "executed", "reasoned"]);
+
 const EMPTY_EVIDENCE: EvidenceMap = {
   files: { has: () => false, readText: async () => undefined },
   agent_config: { guidance: [], has: () => false },
@@ -13,6 +15,17 @@ const EMPTY_EVIDENCE: EvidenceMap = {
     raw: null,
   },
   gitignore: { present: false, patterns: [], ignores: () => false },
+  size_stats: { files: [], totalBytes: 0, totalFiles: 0, source: "none" },
+  ci_workflows: { present: false, workflows: [] },
+  commit_history: { available: false, commits: [] },
+  commands: {
+    run: async () => ({ exitCode: 0, durationMs: 0, stdout: "", stderr: "", timedOut: false }),
+    totalMs: () => 0,
+    runCount: () => 0,
+  },
+  github_api: {
+    branchProtection: async () => ({ kind: "unavailable", reason: "test" }),
+  },
 };
 
 function mkProbe(id: string, tier: Tier, detect: Probe["detect"]): Probe {
@@ -47,9 +60,19 @@ describe("tiered runner", () => {
       }),
     ];
 
-    await runProbes(probes, EMPTY_EVIDENCE);
+    await runProbes(probes, EMPTY_EVIDENCE, { includeTiers: ALL_TIERS });
 
     expect(order).toEqual(["static.a", "derived.a", "executed.a"]);
+  });
+
+  test("default include set excludes executed and reasoned tiers", async () => {
+    const probes: Probe[] = [
+      mkProbe("static.a", "static", async () => ({ kind: "predicate", value: true })),
+      mkProbe("executed.a", "executed", async () => ({ kind: "predicate", value: true })),
+      mkProbe("reasoned.a", "reasoned", async () => ({ kind: "predicate", value: true })),
+    ];
+    const results = await runProbes(probes, EMPTY_EVIDENCE);
+    expect(results.map((r) => r.probe.id)).toEqual(["static.a"]);
   });
 
   test("intra-tier probes run in parallel", async () => {

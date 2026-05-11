@@ -24,6 +24,7 @@ export type ReportInput = {
     probes: Record<string, number | null>;
   } | null;
   ranAt?: string;
+  cost?: { executedMs: number };
 };
 
 export type FitnessBlock = {
@@ -65,6 +66,7 @@ export type Report = {
   probes: ProbeReport[];
   drift: Drift;
   summary: { ran: number; pass: number; fail: number; na: number; error: number };
+  cost?: { executedMs: number };
 };
 
 export function buildReport(input: ReportInput): Report {
@@ -94,6 +96,7 @@ export function buildReport(input: ReportInput): Report {
     probes,
     drift: input.drift,
     summary: summarize(input.results),
+    ...(input.cost ? { cost: input.cost } : {}),
   };
 }
 

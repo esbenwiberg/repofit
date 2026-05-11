@@ -8,10 +8,11 @@ export type RenderInput = {
   results: ProbeResult[];
   verdict: Verdict;
   drift: Drift;
+  cost?: { executedMs: number };
 };
 
 export function renderHuman(input: RenderInput): string {
-  const { aggregated, results, verdict, drift } = input;
+  const { aggregated, results, verdict, drift, cost } = input;
   const lines: string[] = [];
 
   lines.push("");
@@ -37,6 +38,7 @@ export function renderHuman(input: RenderInput): string {
   }
   lines.push(`  gate     ${verdict.mode}  ·  ${verdict.pass ? "PASS" : "FAIL"}`);
   for (const reason of verdict.reasons) lines.push(`           ${reason}`);
+  if (cost) lines.push(`  cost     executed tier ${(cost.executedMs / 1000).toFixed(1)}s`);
 
   if (drift.newProbes.length > 0) {
     lines.push("");

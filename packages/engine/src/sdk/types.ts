@@ -135,6 +135,37 @@ export type CommitHistoryEvidence = {
   commits: CommitRecord[];
 };
 
+export type CommandSpec = {
+  argv: string[];
+  cwd?: string;
+  timeoutMs?: number;
+  warmup?: number;
+  env?: Record<string, string>;
+};
+
+export type CommandRun = {
+  exitCode: number | null;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+};
+
+export type CommandsEvidence = {
+  run(spec: CommandSpec): Promise<CommandRun>;
+  totalMs(): number;
+  runCount(): number;
+};
+
+export type BranchProtectionResult =
+  | { kind: "protected" }
+  | { kind: "unprotected" }
+  | { kind: "unavailable"; reason: string };
+
+export type GithubApiEvidence = {
+  branchProtection(branch?: string): Promise<BranchProtectionResult>;
+};
+
 export type EvidenceMap = {
   files: FilesEvidence;
   agent_config: AgentConfigEvidence;
@@ -143,6 +174,8 @@ export type EvidenceMap = {
   size_stats: SizeStatsEvidence;
   ci_workflows: CiWorkflowsEvidence;
   commit_history: CommitHistoryEvidence;
+  commands: CommandsEvidence;
+  github_api: GithubApiEvidence;
 };
 
 export type GatherContext = {
