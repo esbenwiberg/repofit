@@ -418,7 +418,7 @@ Reasons we'd eventually split:
 
 ## 18. Open questions
 
-- Default corpus probe set — **next discussion topic** (per-dimension).
+- Default corpus reviewed in `corpus-v1.md` — 4 small open items (historical N, latency warm-up, secret pattern source, dangerous-script breadth).
 - SARIF reporter — v1.x or later? (currently: reserved slot, not v1)
 - Final `primer.config.json` schema — settle once probes are concrete.
 - License for the project.
@@ -428,9 +428,10 @@ Reasons we'd eventually split:
 > Probe schema concretized in `probe-schema.md`. Default dimensions
 > locked in `dimensions.md`: Context (25%) / Feedback (20%) /
 > Consistency (15%) / Cost (15%) / Latency (10%) / Safety (15%,
-> gating). Locked decisions on probes: weight precedence (probe →
-> dimension → project), detectors always async, recipe library ships in
-> v1.
+> gating). Default corpus drafted in `corpus-v1.md` (26 always-on
+> probes + 10 opt-in + 1 reasoned for v1.x). Locked decisions on
+> probes: weight precedence (probe → dimension → project), detectors
+> always async, recipe library ships in v1.
 
 ---
 
