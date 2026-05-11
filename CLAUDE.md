@@ -1,66 +1,75 @@
-# agentry
+# repofit
 
-> **Active design work**: a successor architecture called **repofit** is in design
-> review under `docs/design/` (start with `docs/design/README.md`). No code
-> against the repofit design has been written yet — the scan-driven agentry
-> codebase below is what currently ships.
+> **Status:** Phase 0 scaffold. The agentry codebase that previously lived here
+> has been removed; this repo now hosts repofit (the successor architecture
+> described in [`docs/design/`](docs/design/)). Coding is in early bring-up —
+> packages exist, but verbs are not implemented yet.
 
-A CLI that helps any repo become agent-ready. Scan-driven core (ADR-0005):
-
-- `scan` — deterministic evidence bundle (read-only)
-- `brief` — emits `instructions.md` for the user's coding agent
-- `add` / `upgrade` / `remove` — overlay artifact lifecycle
-- `upgrade --check` — drift CI gate (formerly `doctor`)
-- `coach` — bespoke authoring without the full loop
-- `list` — browse merged catalog
+A CLI that measures how agent-friendly a repo is. The engine runs a corpus of
+**probes** that emit **readings**, scores each reading, aggregates per
+**dimension**, and produces an overall fitness number. Optional gates (ratchet,
+absolute, advisory) make it usable in CI.
 
 ## Architecture
 
-Single npm package. **Node 22+**, **TypeScript** (strict, ESM, NodeNext).
+npm workspaces monorepo. **Node 22+**, **TypeScript** (strict, ESM, NodeNext).
 
 ```
-src/         — CLI source (TS)
-  scan/      — gatherers + brief renderer
-  commands/  — verb implementations
-content/     — what ships with the agentry npm package
-  catalog/   — practice entries (kind="practice"); zero artifacts post-ADR-0005
-  practices/ — markdown guidance bodies referenced by catalog entries
-.changes/    — changelog fragments (dogfood)
-.githooks/   — commit-msg + secret scan (dogfood)
-_scripts/    — changelog helpers (dogfood)
-docs/adr/    — agentry's own architectural decisions (dogfood)
+packages/
+  engine/          @esbenwiberg/repofit          — CLI + runtime
+    src/
+      cli/         entrypoints
+      sdk/         public API (defineProbe, defineDimension, recipes) — Phase 1
+      evidence/    subsystem registry + gatherers                     — Phase 1
+      loader/      config + corpus + baseline loaders                 — Phase 1+
+      runner/      tier scheduler, probe execution                    — Phase 1+
+      scorer/      reading → score                                    — Phase 1+
+      aggregator/  probe → dim → fitness                              — Phase 1+
+      reporters/   human / json / ci                                  — Phase 1+
+  corpus-default/  @esbenwiberg/corpus-default   — bundled probes
+    src/
+      probes/      one file per probe                                 — Phase 1+
+      dimensions/  dimension definitions                              — Phase 1+
+docs/
+  design/          design corpus (read this before changing the design)
 ```
-
-The bundled catalog ships **practices** (markdown guidance the agent
-reads and adapts). Byte-perfect team artifacts live in **overlays**
-registered via `agentry.overlays.toml`. agentry uses its own conventions
-on itself.
-
-## Key Conventions
-
-- **Commits:** `type(scope): subject` — see `docs/adr/0000-record-architecture-decisions.md`, and `.changes/README.md`.
-- **Changelog fragments required for:** feat, fix, refactor, perf, build, breaking, security. Skip for: test, docs, style, ci, chore.
-- **Hooks enforce this** — never `--no-verify`. Fix the underlying issue.
-- **No CHANGELOG.md edits** — generated from fragments by CI (TBD).
-- **Posture:** `scan` reads, `add` / `upgrade` / `remove` write opt-in, `coach` never fabricates content. See ADR-0005 (supersedes ADR-0001 for the verb taxonomy).
 
 ## Build & Test
 
 ```bash
-npm install            # install deps
-npm run typecheck      # strict TS
-npm run build          # emit dist/
-node dist/index.js     # run the CLI (until bin link)
+npm install
+npm run typecheck      # tsc --noEmit on both packages
+npm run lint           # biome check
+npm run build          # emit dist/ for both packages
+npm test               # vitest run on both packages
 ```
+
+CLI smoke test once built:
+
+```bash
+node packages/engine/dist/cli/index.js --version    # → repofit 0.0.0
+```
+
+## Key Conventions
+
+- **Commits:** `type(scope): subject` (feat, fix, docs, style, refactor, perf,
+  test, build, ci, chore, breaking, security). Enforced by
+  `.githooks/commit-msg`. Wire hooks via `.githooks/install-hooks.sh`.
+- **Pre-commit:** `.githooks/pre-commit` runs a secret scan.
+- **No `--no-verify`.** Fix the underlying issue.
+- **No `CHANGELOG.md` discipline.** The agentry-era `.changes/` fragment system
+  was removed; release notes will be written manually at v1 ship time.
+- **License:** MIT.
+- **npm scope:** `@esbenwiberg` (packages publish as `@esbenwiberg/repofit`
+  and `@esbenwiberg/corpus-default`).
 
 ## Where to find things
 
 | What | Where |
 |---|---|
-| Locked design decisions (agentry) | `docs/adr/` |
-| Open design notes | `docs/decisions/` |
-| **Successor architecture (repofit) — in design review** | `docs/design/` (start with `README.md`) |
-| Conventions for contributors | `PRACTICES.md` |
-| Bundled practice entries | `content/catalog/` |
-| Practice guidance bodies | `content/practices/` |
-| Overlay author guide | `docs/overlays.md` |
+| Design corpus (read before changing the architecture) | [`docs/design/`](docs/design/) — start with `README.md` |
+| Implementation plan (phases 0 → 7) | [`docs/design/implementation-plan.md`](docs/design/implementation-plan.md) |
+| Probe schema | [`docs/design/probe-schema.md`](docs/design/probe-schema.md) |
+| Report formats | [`docs/design/reports.md`](docs/design/reports.md) |
+| Config + baseline | [`docs/design/config-and-baseline.md`](docs/design/config-and-baseline.md) |
+| Dimensions + corpus v1 | [`docs/design/dimensions.md`](docs/design/dimensions.md), [`docs/design/corpus-v1.md`](docs/design/corpus-v1.md) |
