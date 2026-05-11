@@ -20,5 +20,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@esbenwiberg/repofit": "^0.0.0"
+  }
 }
