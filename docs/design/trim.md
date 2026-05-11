@@ -431,10 +431,11 @@ Reasons we'd eventually split:
 > Consistency (15%) / Cost (15%) / Latency (10%) / Safety (15%,
 > gating). Default corpus drafted in `corpus-v1.md` (26 always-on
 > probes + 10 opt-in + 1 reasoned for v1.x). Config + baseline schemas
-> drafted in `config-and-baseline.md` (corpus pinning, gate modes,
-> overrides, waivers, bootstrap flow). Locked decisions on probes:
-> weight precedence (probe → dimension → project), detectors always
-> async, recipe library ships in v1.
+> locked in `config-and-baseline.md`. Report formats drafted in
+> `reports.md` (human / json / ci modes, explain output, gating cap
+> handling). Locked decisions on probes: weight precedence (probe →
+> dimension → project), detectors always async, recipe library ships
+> in v1.
 
 ---
 
