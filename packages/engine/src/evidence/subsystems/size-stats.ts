@@ -3,11 +3,12 @@ import { readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import type { GatherContext, SizeStatsEvidence, SizeStatsFile } from "../../sdk/types.js";
+import { countLines } from "../../util/count-lines.js";
 
 const exec = promisify(execFile);
 
 const SIZE_PROBE_LIMIT = 5000;
-const BYTE_THRESHOLD_FOR_LINE_COUNT = 2 * 1024 * 1024; // skip line counting for huge files
+const BYTE_THRESHOLD_FOR_LINE_COUNT = 2 * 1024 * 1024;
 
 export const sizeStatsSubsystem = {
   async gather(ctx: GatherContext): Promise<SizeStatsEvidence> {
@@ -25,7 +26,7 @@ export const sizeStatsSubsystem = {
       files,
       totalBytes,
       totalFiles: files.length,
-      source: paths === null ? "none" : "git-ls-files",
+      source: "git-ls-files",
     };
   },
 };
@@ -70,15 +71,6 @@ async function describeFile(cwd: string, path: string): Promise<SizeStatsFile | 
     lines,
     depth: rel.split("/").length,
   };
-}
-
-function countLines(text: string): number {
-  if (text.length === 0) return 0;
-  let count = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) count += 1;
-  }
-  return count;
 }
 
 function empty(source: SizeStatsEvidence["source"]): SizeStatsEvidence {

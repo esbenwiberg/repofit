@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentConfigEvidence, GatherContext, GuidanceFile } from "../../sdk/types.js";
+import { countLines } from "../../util/count-lines.js";
 
 export const GUIDANCE_CANDIDATES = [
   "CLAUDE.md",
@@ -36,12 +37,3 @@ export const agentConfigSubsystem = {
     };
   },
 };
-
-function countLines(content: string): number {
-  if (content.length === 0) return 0;
-  let n = 1;
-  for (let i = 0; i < content.length; i++) {
-    if (content.charCodeAt(i) === 10) n++;
-  }
-  return content.endsWith("\n") ? n - 1 : n;
-}

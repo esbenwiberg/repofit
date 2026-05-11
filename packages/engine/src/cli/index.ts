@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { VERSION } from "../index.js";
 import { errorMessage } from "../util/error-message.js";
-import { check } from "./check.js";
+import { check, type OutputMode } from "./check.js";
 import { explain } from "./explain.js";
 
 const program = new Command();
@@ -38,6 +38,9 @@ program
         console.error("repofit: --json and --ci are mutually exclusive.");
         process.exit(2);
       }
+      let output: OutputMode = "human";
+      if (opts.json) output = "json";
+      else if (opts.ci) output = "ci";
       try {
         const exitCode = await check({
           cwd: opts.cwd,
@@ -45,7 +48,7 @@ program
           init: opts.init,
           accept: opts.accept,
           dirty: opts.dirty,
-          output: opts.json ? "json" : opts.ci ? "ci" : "human",
+          output,
           artifact: opts.artifact,
         });
         process.exit(exitCode);

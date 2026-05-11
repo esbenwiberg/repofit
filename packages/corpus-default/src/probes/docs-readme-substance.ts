@@ -1,11 +1,11 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
 
 const CANONICAL_SECTIONS = [
-  /^#+\s+install|setup|getting started/im,
-  /^#+\s+usage|quickstart/im,
+  /^#+\s+(install|setup|getting started)/im,
+  /^#+\s+(usage|quickstart)/im,
   /^#+\s+build/im,
   /^#+\s+test/im,
-  /^#+\s+architecture|design|overview/im,
+  /^#+\s+(architecture|design|overview)/im,
   /^#+\s+contribut/im,
   /^#+\s+license/im,
 ];

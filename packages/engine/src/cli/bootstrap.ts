@@ -4,6 +4,7 @@ import type { Aggregated } from "../aggregator/index.js";
 import { BASELINE_FILENAME, type Baseline, writeBaseline } from "../loader/baseline.js";
 import { CONFIG_FILENAME, type ProjectConfig, writeProjectConfig } from "../loader/config.js";
 import type { LoadedCorpus } from "../loader/corpus.js";
+import { gitHeadCommit } from "../util/git.js";
 
 const exec = promisify(execFile);
 
@@ -71,13 +72,4 @@ async function gitWorkingTreeDirty(cwd: string): Promise<boolean> {
 function isExpectedDirty(line: string): boolean {
   const path = line.slice(3).trim();
   return path === CONFIG_FILENAME || path === BASELINE_FILENAME;
-}
-
-async function gitHeadCommit(cwd: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await exec("git", ["rev-parse", "HEAD"], { cwd });
-    return stdout.trim() || undefined;
-  } catch {
-    return undefined;
-  }
 }

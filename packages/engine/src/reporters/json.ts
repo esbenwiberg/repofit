@@ -89,12 +89,17 @@ export function buildReport(input: ReportInput): Report {
     corpus: [{ package: input.corpus.name, version: input.corpus.version }],
     config: input.config,
     fitness: fitnessBlock(input.aggregated.fitness, input.baseline?.fitness ?? null),
-    verdict: input.verdict.mode === "advisory" ? "advisory" : input.verdict.pass ? "pass" : "fail",
+    verdict: verdictLabel(input.verdict),
     dimensions,
     probes,
     drift: input.drift,
     summary: summarize(input.results),
   };
+}
+
+function verdictLabel(v: Verdict): "pass" | "fail" | "advisory" {
+  if (v.mode === "advisory") return "advisory";
+  return v.pass ? "pass" : "fail";
 }
 
 function dimensionEntry(d: DimensionResult, baseline: number | null): DimensionReport {

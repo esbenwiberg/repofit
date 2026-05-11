@@ -1,5 +1,3 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { aggregate } from "../aggregator/index.js";
 import { gatherAll } from "../evidence/registry.js";
 import { BASELINE_FILENAME, loadBaseline } from "../loader/baseline.js";
@@ -15,11 +13,12 @@ import { renderCi } from "../reporters/ci.js";
 import { renderHuman } from "../reporters/human-minimal.js";
 import { type ReportInput, renderJson } from "../reporters/json.js";
 import { runProbes } from "../runner/tiered.js";
+import { gitHeadCommit } from "../util/git.js";
 import { detectDrift } from "../verdict/drift.js";
 import { computeVerdict } from "../verdict/index.js";
 import { writeAcceptedBaseline, writeInitialConfig } from "./bootstrap.js";
 
-const exec = promisify(execFile);
+export type OutputMode = "human" | "json" | "ci";
 
 export type CheckOptions = {
   cwd: string;
@@ -27,7 +26,7 @@ export type CheckOptions = {
   init?: boolean;
   accept?: boolean;
   dirty?: boolean;
-  output?: "human" | "json" | "ci";
+  output?: OutputMode;
   artifact?: string | undefined;
 };
 
@@ -77,87 +76,40 @@ export async function check(opts: CheckOptions): Promise<number> {
 
   const verdict = computeVerdict(aggregated, config, baseline);
   const drift = detectDrift(corpus, baseline);
-
   const output = opts.output ?? "human";
 
-  if (output === "json") {
-    const input = await buildReportInput({
-      opts,
-      corpus,
-      config,
-      aggregated,
-      results,
-      verdict,
-      drift,
-      baseline,
-    });
-    process.stdout.write(renderJson(input));
+  if (output === "human") {
+    console.log(renderHuman({ aggregated, results, verdict, drift }));
     return verdict.pass ? 0 : 1;
   }
 
-  if (output === "ci") {
-    const input = await buildReportInput({
-      opts,
-      corpus,
-      config,
-      aggregated,
-      results,
-      verdict,
-      drift,
-      baseline,
-    });
-    const githubActions = process.env.GITHUB_ACTIONS === "true";
-    const rendered = await renderCi({ ...input, githubActions, artifactPath: opts.artifact });
-    console.log(rendered.stdout);
-    for (const line of rendered.annotations) console.log(line);
-    return verdict.pass ? 0 : 1;
-  }
-
-  console.log(renderHuman({ aggregated, results, verdict, drift }));
-  return verdict.pass ? 0 : 1;
-}
-
-type BuildReportArgs = {
-  opts: CheckOptions;
-  corpus: Awaited<ReturnType<typeof loadDefaultCorpus>>;
-  config: ProjectConfig;
-  aggregated: ReturnType<typeof aggregate>;
-  results: Awaited<ReturnType<typeof runProbes>>;
-  verdict: ReturnType<typeof computeVerdict>;
-  drift: ReturnType<typeof detectDrift>;
-  baseline: Awaited<ReturnType<typeof loadBaseline>>;
-};
-
-async function buildReportInput(args: BuildReportArgs): Promise<ReportInput> {
-  return {
-    cwd: args.opts.cwd,
-    commit: await currentCommit(args.opts.cwd),
-    corpus: args.corpus,
+  const reportInput: ReportInput = {
+    cwd: opts.cwd,
+    commit: await gitHeadCommit(opts.cwd),
+    corpus,
     config: {
-      gateMode: args.config.gate.mode,
-      ...(args.config.gate.include ? { include: args.config.gate.include } : {}),
+      gateMode: config.gate.mode,
+      ...(config.gate.include ? { include: config.gate.include } : {}),
     },
-    aggregated: args.aggregated,
-    results: args.results,
-    verdict: args.verdict,
-    drift: args.drift,
-    baseline: args.baseline
-      ? {
-          fitness: args.baseline.fitness,
-          dimensions: args.baseline.dimensions,
-          probes: args.baseline.probes,
-        }
+    aggregated,
+    results,
+    verdict,
+    drift,
+    baseline: baseline
+      ? { fitness: baseline.fitness, dimensions: baseline.dimensions, probes: baseline.probes }
       : null,
   };
-}
 
-async function currentCommit(cwd: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await exec("git", ["rev-parse", "HEAD"], { cwd });
-    return stdout.trim() || undefined;
-  } catch {
-    return undefined;
+  if (output === "json") {
+    process.stdout.write(renderJson(reportInput));
+    return verdict.pass ? 0 : 1;
   }
+
+  const githubActions = process.env.GITHUB_ACTIONS === "true";
+  const rendered = await renderCi({ ...reportInput, githubActions, artifactPath: opts.artifact });
+  console.log(rendered.stdout);
+  for (const line of rendered.annotations) console.log(line);
+  return verdict.pass ? 0 : 1;
 }
 
 function fmt(n: number | null): string {

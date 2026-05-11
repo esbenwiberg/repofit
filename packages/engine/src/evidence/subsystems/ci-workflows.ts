@@ -11,7 +11,7 @@ export const ciWorkflowsSubsystem = {
     try {
       entries = await readdir(dir);
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      if (err instanceof Error && "code" in err && err.code === "ENOENT") {
         return { present: false, workflows: [] };
       }
       throw err;
