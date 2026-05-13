@@ -65,7 +65,7 @@ export type Probe = {
   rationale: string;
   detect(ev: EvidenceMap): Promise<Reading>;
   score: ScoreConfig;
-  remediation?: unknown;
+  remediation?: string;
   fixtures: Fixture[];
 };
 

@@ -103,6 +103,9 @@ export default defineProbe({
     gates — lint, format, typecheck, test, build — are actually invoked.
   `,
 
+  remediation:
+    "Extend your pre-commit hook to run all five gates: lint, format check, typecheck, test, build. The shorter the loop the agent feels, the faster mistakes are caught — running them locally before commit beats waiting for CI.",
+
   async detect(ev) {
     const allFiles = ev.size_stats.files.map((f) => f.path);
     let combinedHookText = "";

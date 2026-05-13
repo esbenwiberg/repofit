@@ -72,6 +72,9 @@ export default defineProbe({
     (Ruby).
   `,
 
+  remediation:
+    "Add a linter: `@biomejs/biome` or `eslint` (Node), `ruff` / `flake8` / `mypy` (Python), `checkstyle` / `spotbugs` in pom.xml (Java), `StyleCop.Analyzers` in .csproj (.NET), or `rubocop` (Ruby). Go and Rust ship with `go vet` / `cargo clippy`.",
+
   async detect(ev) {
     if (ev.node_package.present) {
       const hasLinterDep = NODE_LINTERS.some((l) => l in ev.node_package.devDependencies);

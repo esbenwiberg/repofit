@@ -43,6 +43,13 @@ describe("explain", () => {
     expect(stdout).not.toContain("To run against this repo");
   });
 
+  test("shows 'How to fix' section when probe defines remediation", async () => {
+    const { stdout, exitCode } = await explain({ id: "agent.guidance-present" });
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("How to fix");
+    expect(stdout).toContain("CLAUDE.md");
+  });
+
   test("without --run, the trace section is omitted and the hint is shown", async () => {
     const { stdout, exitCode } = await explain({ id: "agent.guidance-present" });
     expect(exitCode).toBe(0);

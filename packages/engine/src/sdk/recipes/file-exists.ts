@@ -7,6 +7,7 @@ export type FileExistsRecipe = {
   dimensions: DimensionAssignment[];
   tier?: Tier;
   rationale: string;
+  remediation?: string;
   path: string;
   fixtures?: Fixture[];
 };
@@ -32,6 +33,7 @@ export function fileExists(spec: FileExistsRecipe): Probe {
     tier: spec.tier ?? "static",
     evidence: ["files"],
     rationale: spec.rationale,
+    remediation: spec.remediation,
     detect: async (ev) => ({ kind: "predicate", value: ev.files.has(spec.path) }),
     score: { kind: "predicate", direction: "positive" },
     fixtures,

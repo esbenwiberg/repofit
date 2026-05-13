@@ -14,6 +14,9 @@ export default defineProbe({
     from zero context.
   `,
 
+  remediation:
+    "Add a `CLAUDE.md` (or `AGENTS.md`) at the repo root. Cover: what the project is, how to build/test/lint, key conventions, and where to find things. Even 30–50 lines is a huge upgrade over nothing.",
+
   async detect(ev) {
     return { kind: "predicate", value: ev.agent_config.guidance.length > 0 };
   },

@@ -30,6 +30,16 @@ export function renderHuman(input: RenderInput): string {
     lines.push(`    ${readingVerdict(r)}  ${r.probe.id}`);
   }
 
+  const fixable = results.filter((r) => r.probe.remediation && needsAttention(r));
+  if (fixable.length > 0) {
+    lines.push("");
+    lines.push("  How to fix");
+    for (const r of fixable) {
+      lines.push(`    ${r.probe.id}`);
+      lines.push(`      ${r.probe.remediation}`);
+    }
+  }
+
   lines.push("");
   if (aggregated.fitness === null) {
     lines.push("  fitness  —  (no scored probes)");
@@ -53,6 +63,12 @@ export function renderHuman(input: RenderInput): string {
 
   lines.push("");
   return lines.join("\n");
+}
+
+function needsAttention(r: ProbeResult): boolean {
+  if (r.reading.kind === "na" || r.reading.kind === "error") return false;
+  if (r.reading.kind === "predicate") return !r.reading.value;
+  return r.score !== null && r.score < 100;
 }
 
 function readingVerdict(r: ProbeResult): string {

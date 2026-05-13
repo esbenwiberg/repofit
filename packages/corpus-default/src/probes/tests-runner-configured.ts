@@ -67,6 +67,9 @@ export default defineProbe({
     (Ruby).
   `,
 
+  remediation:
+    "Wire up a test runner: `vitest` / `jest` / `node --test` (Node), `pytest` (Python), `junit-jupiter` in pom.xml (Java), `xunit` + `Microsoft.NET.Test.Sdk` in .csproj (.NET), or `rspec` / `minitest` (Ruby). Even one passing smoke test is enough — the value is having a feedback loop the agent can run.",
+
   async detect(ev) {
     if (ev.node_package.present) {
       const hasRunnerDep = NODE_RUNNERS.some((r) => r in ev.node_package.devDependencies);

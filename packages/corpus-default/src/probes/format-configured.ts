@@ -63,6 +63,9 @@ export default defineProbe({
     editorconfig), and rubocop / standardrb (Ruby).
   `,
 
+  remediation:
+    "Add a formatter: `@biomejs/biome` or `prettier` in devDependencies (Node), `[tool.ruff.format]` in pyproject.toml (Python), or `spotless` / `CSharpier` / `rubocop` for the other ecosystems. Go and Rust get gofmt/rustfmt for free with go.mod/Cargo.toml.",
+
   async detect(ev) {
     if (ev.node_package.present) {
       const hasFormatterDep = NODE_FORMATTERS.some((f) => f in ev.node_package.devDependencies);

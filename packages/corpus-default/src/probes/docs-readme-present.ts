@@ -10,5 +10,7 @@ export default fileExists({
     steps, and conventions from incidental signals (filenames, dependencies,
     git history) — slower and unreliable.
   `,
+  remediation:
+    "Add a `README.md` at the repo root. Cover what the project does, how to install/build/run, and where to find more docs. A short README beats no README.",
   path: "README.md",
 });

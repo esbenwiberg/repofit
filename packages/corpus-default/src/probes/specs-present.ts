@@ -30,6 +30,9 @@ export default defineProbe({
     and at least one spec file inside it.
   `,
 
+  remediation:
+    "Create a `specs/` (or `.specify/`) directory and put one markdown file per feature in it. Each spec should cover: problem, design sketch, acceptance criteria, and edge cases. Even a single short spec is a meaningful signal.",
+
   async detect(ev) {
     for (const dir of SPEC_DIRS) {
       if (!ev.files.has(dir)) continue;

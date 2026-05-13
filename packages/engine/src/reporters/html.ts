@@ -232,6 +232,7 @@ function probeSection(r: ProbeResult, baseline: number | null): string {
     <div class="p-rationale">${rationaleHtml(r.probe.rationale)}</div>
     <div class="p-reading"><strong>Your reading:</strong> ${readingDetail(r.reading)}</div>
     ${scoringLadder(r.probe.score, r.reading, r.score)}
+    ${remediationBlock(r)}
     ${fixturesBlock(r.probe)}
     <div class="p-debug"><code>repofit check --probe ${esc(r.probe.id)}</code> · <code>repofit explain ${esc(r.probe.id)}</code></div>
   </div>
@@ -393,6 +394,14 @@ function computeStat(samples: number[], stat: "mean" | "median" | "p95" | "p99" 
     case "max":
       return sorted[sorted.length - 1] ?? 0;
   }
+}
+
+function remediationBlock(r: ProbeResult): string {
+  if (!r.probe.remediation) return "";
+  if (r.reading.kind === "na" || r.reading.kind === "error") return "";
+  if (r.reading.kind === "predicate" && r.reading.value) return "";
+  if (r.score !== null && r.score >= 100) return "";
+  return `<div class="p-remediation"><strong>How to fix:</strong> ${esc(r.probe.remediation)}</div>`;
 }
 
 function fixturesBlock(probe: Probe): string {
@@ -719,6 +728,15 @@ main { padding: 0 32px 32px; }
   color: #44403c;
 }
 .p-reading { margin: 12px 0; }
+.p-remediation {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: #fef3c7;
+  border-left: 3px solid #d97706;
+  border-radius: 4px;
+  font-size: 13px;
+  max-width: 70ch;
+}
 .ladder {
   margin: 12px 0;
   padding: 12px 16px;

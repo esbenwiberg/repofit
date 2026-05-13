@@ -201,6 +201,11 @@ function explainProbe(probe: Probe, corpus: LoadedCorpus, trace: string[]): stri
   lines.push("");
   lines.push("Scoring");
   lines.push(...indent(formatScoring(probe.score), "  "));
+  if (probe.remediation) {
+    lines.push("");
+    lines.push("How to fix");
+    lines.push(...indent(wrap(probe.remediation, 70), "  "));
+  }
   lines.push("");
   lines.push(`Evidence consumed`);
   lines.push(`  ${probe.evidence.join(", ")}`);

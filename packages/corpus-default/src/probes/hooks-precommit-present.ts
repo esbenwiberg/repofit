@@ -16,6 +16,9 @@ export default defineProbe({
     code review (much slower).
   `,
 
+  remediation:
+    "Wire a pre-commit hook. Easiest options: `husky` (Node), `pre-commit` (Python — `.pre-commit-config.yaml`), or commit hooks under `.githooks/` + `git config core.hooksPath .githooks`. Run lint/format/test from it.",
+
   async detect(ev) {
     return { kind: "predicate", value: HOOK_PATHS.some((p) => ev.files.has(p)) };
   },
