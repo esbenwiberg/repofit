@@ -14,10 +14,12 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "test": "npm run build -w @esbenwiberg/repofit && npm run test --workspaces --if-present"
+    "test": "npm run build -w @esbenwiberg/repofit && npm run test --workspaces --if-present",
+    "arch:check": "depcruise --config .dependency-cruiser.cjs packages"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "dependency-cruiser": "^17.4.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
   }
