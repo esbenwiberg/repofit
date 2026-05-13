@@ -1,22 +1,23 @@
 {
   "version": 1,
-  "acceptedAt": "2026-05-13T09:24:29.995Z",
+  "acceptedAt": "2026-05-13T10:30:48.001Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
       "version": "1.0.0"
     }
   ],
-  "fitness": 90.74108093311841,
+  "fitness": 91.00061842918986,
   "dimensions": {
-    "context": 83.27868852459017,
+    "context": 81.51515151515152,
     "consistency": 98.18181818181819,
     "cost": 80,
-    "feedback": 92.24489795918366,
+    "feedback": 95.30612244897958,
     "latency": null,
     "safety": 100
   },
   "probes": {
+    "agent.guidance-nested": 60,
     "agent.guidance-present": 100,
     "agent.guidance-substance": 80,
     "arch.doc-present": 100,
@@ -51,7 +52,7 @@
     "errors.actionability": 100,
     "runtime.dev-loop-bootable": 80,
     "specs.quality": 80,
-    "tests.cover-public-surface": 50
+    "tests.cover-public-surface": 80
   },
-  "commit": "ff2ff33e5b8f655fefd56ac143a5779c64c9482b"
+  "commit": "2593ab7a222ce23d6339affb7026e330c5f5a885"
 }
