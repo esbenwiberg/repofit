@@ -3,12 +3,16 @@ import path from "node:path";
 import { gatherAll } from "../evidence/registry.js";
 import { type LoadedCorpus, loadDefaultCorpus } from "../loader/corpus.js";
 import { DEFAULT_TIERS, runProbes } from "../runner/tiered.js";
-import type { FixAction, Fixer, FixPlan, Probe, Reading } from "../sdk/types.js";
+import type { FixAction, Fixer, FixPlan, Generate, Probe, Reading } from "../sdk/types.js";
+import { createGenerator } from "../util/llm.js";
 
 export type ApplyOptions = {
   cwd: string;
   probeId?: string;
   write?: boolean;
+  withLlm?: boolean;
+  llmTransport?: "api" | "cli";
+  generate?: Generate;
 };
 
 type PlannedFix = {
@@ -19,7 +23,7 @@ type PlannedFix = {
 
 export async function apply(opts: ApplyOptions): Promise<{ stdout: string; exitCode: number }> {
   const corpus = await loadDefaultCorpus();
-  const fixersByProbe = indexFixers(corpus);
+  const fixersByProbe = indexFixers(corpus, opts.withLlm ?? false);
 
   const probes = filterProbes(corpus, opts.probeId, fixersByProbe);
   if (opts.probeId && probes.length === 0) {
@@ -35,13 +39,24 @@ export async function apply(opts: ApplyOptions): Promise<{ stdout: string; exitC
   const evidence = await gatherAll({ cwd: opts.cwd, judge: {} });
   const results = await runProbes(probes, evidence, { includeTiers: DEFAULT_TIERS });
 
+  const usesLlm = Array.from(fixersByProbe.values()).some((f) => f.mode === "llm");
+  let generate: Generate | null = null;
+  if (usesLlm) {
+    generate = opts.generate ?? (await createGenerator({ transport: opts.llmTransport }));
+  }
+
   const planned: PlannedFix[] = [];
   for (const r of results) {
     if (r.score === null || r.score >= 100) continue;
     if (r.reading.kind === "na" || r.reading.kind === "error") continue;
     const fixer = fixersByProbe.get(r.probe.id);
     if (!fixer) continue;
-    const plan = await fixer.plan({ cwd: opts.cwd, probe: r.probe, reading: r.reading });
+    const plan = await runFixer(fixer, {
+      cwd: opts.cwd,
+      probe: r.probe,
+      reading: r.reading,
+      generate,
+    });
     if (!plan || plan.actions.length === 0) continue;
     planned.push({ probe: r.probe, fixer, plan });
   }
@@ -71,10 +86,40 @@ export async function apply(opts: ApplyOptions): Promise<{ stdout: string; exitC
   };
 }
 
-function indexFixers(corpus: LoadedCorpus): Map<string, Fixer> {
+function indexFixers(corpus: LoadedCorpus, preferLlm: boolean): Map<string, Fixer> {
   const out = new Map<string, Fixer>();
-  for (const f of corpus.fixers) out.set(f.probeId, f);
+  for (const f of corpus.fixers) {
+    if (preferLlm) {
+      // Pick LLM mode over static if both are registered for the same probe.
+      const existing = out.get(f.probeId);
+      if (!existing || (existing.mode === "static" && f.mode === "llm")) {
+        out.set(f.probeId, f);
+      }
+    } else if (f.mode === "static") {
+      out.set(f.probeId, f);
+    }
+  }
   return out;
+}
+
+async function runFixer(
+  fixer: Fixer,
+  ctx: { cwd: string; probe: Probe; reading: Reading; generate: Generate | null },
+): Promise<FixPlan | null> {
+  if (fixer.mode === "static") {
+    return fixer.plan({ cwd: ctx.cwd, probe: ctx.probe, reading: ctx.reading });
+  }
+  if (!ctx.generate) {
+    throw new Error(
+      `apply: fixer for '${fixer.probeId}' is LLM-mode but no generator was provided`,
+    );
+  }
+  return fixer.plan({
+    cwd: ctx.cwd,
+    probe: ctx.probe,
+    reading: ctx.reading,
+    generate: ctx.generate,
+  });
 }
 
 function filterProbes(

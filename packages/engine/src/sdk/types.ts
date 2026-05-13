@@ -258,9 +258,30 @@ export type FixContext = {
   reading: Reading;
 };
 
-export type Fixer = {
+export type GenerateOptions = {
+  model?: string;
+  maxTokens?: number;
+  system?: string;
+};
+
+export type Generate = (prompt: string, opts?: GenerateOptions) => Promise<string>;
+
+export type LlmFixContext = FixContext & {
+  generate: Generate;
+};
+
+export type StaticFixer = {
   probeId: string;
   mode: "static";
   describe: string;
   plan(ctx: FixContext): Promise<FixPlan | null>;
 };
+
+export type LlmFixer = {
+  probeId: string;
+  mode: "llm";
+  describe: string;
+  plan(ctx: LlmFixContext): Promise<FixPlan | null>;
+};
+
+export type Fixer = StaticFixer | LlmFixer;

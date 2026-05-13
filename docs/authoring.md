@@ -318,11 +318,52 @@ export const fixers = [agentGuidancePresentFixer /* … */];
 
 If your fixer detects nothing to do (e.g. the file is already correct), return `null` from `plan`. The CLI will skip it cleanly.
 
+### LLM-mode fixers
+
+Some artifacts (READMEs, per-package CLAUDE.md, ADRs) only become useful when they're *specific to the project*. A generic scaffold is barely better than nothing; a tailored one is a real win. For those, write an LLM-mode fixer — Claude generates the content, your code wraps it into a `write-file` action.
+
+```ts
+// fixers/agent-guidance-present-llm.ts
+import { defineFixer } from "@esbenwiberg/repofit/sdk";
+
+const SYSTEM = `You are writing a CLAUDE.md for a project. …`;
+
+export default defineFixer({
+  probeId: "agent.guidance-present",
+  mode: "llm",
+  describe: "generate CLAUDE.md with Claude",
+  async plan({ cwd, generate }) {
+    const context = await collectProjectContext(cwd);
+    const content = await generate(buildPrompt(context), { system: SYSTEM, maxTokens: 4096 });
+    return {
+      actions: [{ kind: "write-file", path: "CLAUDE.md", content, ifMissing: true }],
+      notes: ["review before committing — may contain TODO markers or guesses"],
+    };
+  },
+});
+```
+
+Users opt into LLM fixers explicitly with `--with-llm`:
+
+```bash
+# Static fixers only (default — no API costs, deterministic).
+repofit apply
+
+# Use LLM fixers when registered. Falls back to static for probes without an LLM fixer.
+repofit apply --with-llm
+
+# Force a specific transport.
+repofit apply --with-llm --llm-transport api    # requires ANTHROPIC_API_KEY
+repofit apply --with-llm --llm-transport cli    # requires `claude` on PATH
+```
+
+The same probe can have both a static and an LLM fixer registered. Without `--with-llm`, the static one runs. With `--with-llm`, the LLM one is preferred; if no LLM fixer is registered for a probe, the static one runs as a fallback. This lets you ship `apply` that works offline and degrades cleanly when no API key or CLI is around.
+
 ### Best practices
 
-- **Be conservative.** Prefer `ifMissing: true` and `append-lines` over destructive writes.
-- **Be specific.** The scaffold should give the user something to *react to*, not a perfect answer. A `TODO` is honest; a fabricated paragraph isn't.
-- **Don't over-script.** `apply` is for the obvious 80%. Anything that requires project knowledge (real README content, real ADRs from history) is better handled by an LLM-backed fixer (planned for v1.x).
+- **Be conservative.** Prefer `ifMissing: true` and `append-lines` over destructive writes — for both static and LLM fixers.
+- **Be specific.** A scaffold should give the user something to *react to*, not a perfect answer. A `TODO` marker is honest; a fabricated paragraph isn't. Bake this rule into your LLM system prompts.
+- **Don't over-script.** `apply` is for the obvious 80%. The remaining 20% (subtle architectural choices, conventions tied to team culture) is better left to humans.
 
 ## See also
 

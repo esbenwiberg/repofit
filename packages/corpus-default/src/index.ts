@@ -6,7 +6,9 @@ import feedbackDimension from "./dimensions/feedback.js";
 import latencyDimension from "./dimensions/latency.js";
 import safetyDimension from "./dimensions/safety.js";
 import agentGuidancePresentFixer from "./fixers/agent-guidance-present.js";
+import agentGuidancePresentLlmFixer from "./fixers/agent-guidance-present-llm.js";
 import docsReadmePresentFixer from "./fixers/docs-readme-present.js";
+import docsReadmePresentLlmFixer from "./fixers/docs-readme-present-llm.js";
 import editorconfigPresentFixer from "./fixers/editorconfig-present.js";
 import gitignoreComprehensiveFixer from "./fixers/gitignore-comprehensive.js";
 import agentGuidanceNested from "./probes/agent-guidance-nested.js";
@@ -121,7 +123,9 @@ export const dimensions = [
 
 export const fixers = [
   agentGuidancePresentFixer,
+  agentGuidancePresentLlmFixer,
   docsReadmePresentFixer,
+  docsReadmePresentLlmFixer,
   editorconfigPresentFixer,
   gitignoreComprehensiveFixer,
 ];

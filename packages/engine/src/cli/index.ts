@@ -245,23 +245,51 @@ waive
 
 program
   .command("apply")
-  .description("Plan or apply deterministic fixes for failing probes. Dry run by default.")
+  .description("Plan or apply fixes for failing probes. Dry run by default.")
   .option("--probe <id>", "Apply only the fixer for this probe id.")
   .option("--cwd <path>", "Working directory.", process.cwd())
   .option("--write", "Actually write the changes. Without this, only print the plan.")
-  .action(async (opts: { probe?: string; cwd: string; write?: boolean }) => {
-    try {
-      const { stdout, exitCode } = await apply({
-        cwd: opts.cwd,
-        probeId: opts.probe,
-        write: opts.write,
-      });
-      process.stdout.write(stdout);
-      process.exit(exitCode);
-    } catch (err) {
-      console.error(`repofit: ${errorMessage(err)}`);
-      process.exit(2);
-    }
-  });
+  .option(
+    "--with-llm",
+    "Use LLM-mode fixers when available (generate project-specific content via Claude).",
+  )
+  .option(
+    "--llm-transport <mode>",
+    "Force LLM transport: 'api' (ANTHROPIC_API_KEY) or 'cli' (claude CLI). Default: auto.",
+  )
+  .action(
+    async (opts: {
+      probe?: string;
+      cwd: string;
+      write?: boolean;
+      withLlm?: boolean;
+      llmTransport?: string;
+    }) => {
+      if (
+        opts.llmTransport !== undefined &&
+        opts.llmTransport !== "api" &&
+        opts.llmTransport !== "cli"
+      ) {
+        console.error(
+          `repofit: --llm-transport must be 'api' or 'cli' (got '${opts.llmTransport}')`,
+        );
+        process.exit(2);
+      }
+      try {
+        const { stdout, exitCode } = await apply({
+          cwd: opts.cwd,
+          probeId: opts.probe,
+          write: opts.write,
+          withLlm: opts.withLlm,
+          llmTransport: opts.llmTransport as "api" | "cli" | undefined,
+        });
+        process.stdout.write(stdout);
+        process.exit(exitCode);
+      } catch (err) {
+        console.error(`repofit: ${errorMessage(err)}`);
+        process.exit(2);
+      }
+    },
+  );
 
 await program.parseAsync(process.argv);
