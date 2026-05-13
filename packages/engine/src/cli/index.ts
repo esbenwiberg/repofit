@@ -5,6 +5,7 @@ import { TIERS, type Tier } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
 import { check, type OutputMode } from "./check.js";
 import { explain } from "./explain.js";
+import { probeNew } from "./probe-new.js";
 
 const VALID_TIERS = new Set<Tier>(TIERS);
 
@@ -149,5 +150,23 @@ program
       }
     },
   );
+
+const probe = program.command("probe").description("Author probes for a custom corpus.");
+
+probe
+  .command("new <id>")
+  .description("Scaffold a new probe file (id format: 'category.what-it-checks').")
+  .option("--kind <kind>", "Reading kind: predicate (default), count, or magnitude.", "predicate")
+  .option("--dir <path>", "Directory to write the scaffold into. Defaults to ./probes.")
+  .action(async (id: string, opts: { kind?: string; dir?: string }) => {
+    try {
+      const { stdout, exitCode } = await probeNew({ id, kind: opts.kind, dir: opts.dir });
+      process.stdout.write(stdout);
+      process.exit(exitCode);
+    } catch (err) {
+      console.error(`repofit: ${errorMessage(err)}`);
+      process.exit(2);
+    }
+  });
 
 await program.parseAsync(process.argv);

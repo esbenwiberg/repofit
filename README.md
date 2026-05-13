@@ -80,8 +80,22 @@ npm run build
 npm test
 ```
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch/commit conventions
-and the probe-authoring guide.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch/commit conventions.
+
+## Authoring custom probes
+
+The default corpus covers the basics, but probes are meant to be extended.
+Scaffold a new one with:
+
+```bash
+npx repofit probe new feat.my-thing            # predicate (default)
+npx repofit probe new size.dead-files --kind count
+npx repofit probe new latency.deploy --kind magnitude
+```
+
+See [`docs/authoring.md`](docs/authoring.md) for the full guide — tiers,
+reading kinds, scoring, evidence subsystems, fixtures, and how to register
+probes in a custom corpus.
 
 ## License
 
