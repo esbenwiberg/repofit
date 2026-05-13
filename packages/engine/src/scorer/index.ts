@@ -28,6 +28,10 @@ export function score(reading: Reading, config: ScoreConfig): number | null {
       }
       return scoreBands(distributionStat(reading.samples, config.stat), config.bands);
     }
+    case "judge": {
+      if (reading.kind !== "judge") throw mismatch(reading, config);
+      return reading.score;
+    }
   }
 }
 

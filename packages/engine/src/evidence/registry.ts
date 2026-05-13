@@ -6,6 +6,7 @@ import { commitHistorySubsystem } from "./subsystems/commit-history.js";
 import { filesSubsystem } from "./subsystems/files.js";
 import { githubApiSubsystem } from "./subsystems/github-api.js";
 import { gitignoreSubsystem } from "./subsystems/gitignore.js";
+import { judgeSubsystem } from "./subsystems/judge.js";
 import { nodePackageSubsystem } from "./subsystems/node-package.js";
 import { sizeStatsSubsystem } from "./subsystems/size-stats.js";
 
@@ -30,5 +31,6 @@ export async function gatherAll(ctx: GatherContext): Promise<EvidenceMap> {
     commit_history: commitHistory,
     commands: commandsSubsystem.gather(ctx),
     github_api: githubApiSubsystem.gather(ctx),
+    judge: judgeSubsystem.gather(ctx),
   };
 }

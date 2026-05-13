@@ -17,6 +17,13 @@ export type Reading =
   | { kind: "magnitude"; value: number; unit: string }
   | { kind: "inventory"; items: InventoryItem[] }
   | { kind: "distribution"; samples: number[] }
+  | {
+      kind: "judge";
+      score: number;
+      perCriterion: Record<string, number>;
+      rationale: string;
+      model: string;
+    }
   | { kind: "na"; reason: string }
   | { kind: "error"; error: string };
 
@@ -33,7 +40,8 @@ export type ScoreConfig =
       kind: "distribution";
       stat: "mean" | "median" | "p95" | "p99" | "max";
       bands: Band[];
-    };
+    }
+  | { kind: "judge" };
 
 export const TIERS = ["static", "derived", "historical", "executed", "reasoned"] as const;
 export type Tier = (typeof TIERS)[number];
@@ -165,6 +173,40 @@ export type GithubApiEvidence = {
   branchProtection(branch?: string): Promise<BranchProtectionResult>;
 };
 
+export const JUDGE_BANDS = [0, 20, 50, 80, 100] as const;
+export type JudgeBand = (typeof JUDGE_BANDS)[number];
+
+export type JudgeRubricCriterion = {
+  id: string;
+  description: string;
+};
+
+export type JudgeRubric = {
+  task: string;
+  criteria: readonly JudgeRubricCriterion[];
+};
+
+export type JudgeRequest = {
+  probeId: string;
+  probeVersion: string;
+  input: string;
+  rubric: JudgeRubric;
+  model?: string;
+};
+
+export type JudgeResult = {
+  score: JudgeBand;
+  perCriterion: Record<string, JudgeBand>;
+  rationale: string;
+  model: string;
+  fromCache: boolean;
+};
+
+export type JudgeEvidence = {
+  defaultModel: string;
+  score(req: JudgeRequest): Promise<JudgeResult>;
+};
+
 export type EvidenceMap = {
   files: FilesEvidence;
   agent_config: AgentConfigEvidence;
@@ -175,8 +217,16 @@ export type EvidenceMap = {
   commit_history: CommitHistoryEvidence;
   commands: CommandsEvidence;
   github_api: GithubApiEvidence;
+  judge: JudgeEvidence;
+};
+
+export type JudgeOptions = {
+  noCache?: boolean;
+  model?: string;
+  transport?: "api" | "cli";
 };
 
 export type GatherContext = {
   cwd: string;
+  judge?: JudgeOptions;
 };

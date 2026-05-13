@@ -15,6 +15,10 @@ import type {
   GithubApiEvidence,
   GitignoreEvidence,
   GuidanceFile,
+  JudgeBand,
+  JudgeEvidence,
+  JudgeRequest,
+  JudgeResult,
   NodePackageEvidence,
   Probe,
   Reading,
@@ -68,6 +72,7 @@ function hydrateFixtureEvidence(raw: Record<string, unknown>): EvidenceMap {
     commit_history: hydrateCommitHistory(raw.commit_history),
     commands: hydrateCommands(raw.commands),
     github_api: hydrateGithubApi(raw.github_api),
+    judge: hydrateJudge(raw.judge),
   };
 }
 
@@ -167,6 +172,32 @@ function hydrateGithubApi(raw: unknown): GithubApiEvidence {
   return {
     async branchProtection(): Promise<BranchProtectionResult> {
       return fixture?.branchProtection ?? { kind: "unavailable", reason: "fixture: not provided" };
+    },
+  };
+}
+
+type JudgeFixture = {
+  score?: JudgeBand;
+  perCriterion?: Record<string, JudgeBand>;
+  rationale?: string;
+  model?: string;
+};
+
+function hydrateJudge(raw: unknown): JudgeEvidence {
+  const fixture = (raw && typeof raw === "object" ? raw : null) as JudgeFixture | null;
+  return {
+    defaultModel: fixture?.model ?? "fixture",
+    async score(req: JudgeRequest): Promise<JudgeResult> {
+      if (!fixture) {
+        throw new Error(`judge: fixture not provided for probe '${req.probeId}'`);
+      }
+      return {
+        score: fixture.score ?? 0,
+        perCriterion: fixture.perCriterion ?? {},
+        rationale: fixture.rationale ?? "",
+        model: fixture.model ?? "fixture",
+        fromCache: false,
+      };
     },
   };
 }

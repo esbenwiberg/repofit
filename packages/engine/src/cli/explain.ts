@@ -121,6 +121,8 @@ function formatScoring(score: ScoreConfig): string[] {
           (b) => `  ${b.upTo === undefined ? "default" : `≤ ${b.upTo}`} → ${b.score}`,
         ),
       ];
+    case "judge":
+      return ["judge (LLM-rated)", "  banded scores: 0, 20, 50, 80, 100 (snapped to nearest)"];
   }
 }
 

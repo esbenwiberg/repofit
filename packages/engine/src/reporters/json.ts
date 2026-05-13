@@ -2,6 +2,7 @@ import type { Aggregated, DimensionResult } from "../aggregator/index.js";
 import { VERSION } from "../index.js";
 import type { CorpusPin, GateMode } from "../loader/config.js";
 import type { LoadedCorpus } from "../loader/corpus.js";
+import type { EffectiveDimension } from "../loader/effective-dimensions.js";
 import type { ProbeResult } from "../runner/tiered.js";
 import type { Reading } from "../sdk/types.js";
 import type { Drift } from "../verdict/drift.js";
@@ -15,6 +16,7 @@ export type ReportInput = {
   corpus: LoadedCorpus;
   config: { gateMode: GateMode; include?: readonly string[] };
   aggregated: Aggregated;
+  effectiveDimensions?: EffectiveDimension[];
   results: ProbeResult[];
   verdict: Verdict;
   drift: Drift;

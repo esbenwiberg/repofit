@@ -28,8 +28,9 @@ build/
 coverage/
 .nyc_output/
 
-# Repofit cache
+# Repofit cache + generated reports
 .repofit/
+repofit-report.html
 
 # Local agent state
 .claude/

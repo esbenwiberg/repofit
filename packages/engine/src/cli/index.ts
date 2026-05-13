@@ -39,11 +39,17 @@ program
   .option("--json", "Emit the full report as JSON to stdout.")
   .option("--ci", "Emit a CI-friendly verdict line; respects GITHUB_ACTIONS env.")
   .option("--artifact <path>", "With --ci, also write the JSON report to this path.")
+  .option("--html <path>", "Write a self-contained HTML report to this path.")
   .option(
     "--include <tier>",
     "Opt-in tier (executed, reasoned). Comma-separate or repeat to add multiple.",
     parseInclude,
     [] as Tier[],
+  )
+  .option("--no-cache", "Skip the persistent judge cache for reasoned-tier probes.")
+  .option(
+    "--judge-transport <mode>",
+    "Force judge transport: 'api' (ANTHROPIC_API_KEY) or 'cli' (claude CLI). Default: auto.",
   )
   .action(
     async (opts: {
@@ -55,10 +61,23 @@ program
       json?: boolean;
       ci?: boolean;
       artifact?: string;
+      html?: string;
       include: Tier[];
+      cache: boolean;
+      judgeTransport?: string;
     }) => {
       if (opts.json && opts.ci) {
         console.error("repofit: --json and --ci are mutually exclusive.");
+        process.exit(2);
+      }
+      if (
+        opts.judgeTransport !== undefined &&
+        opts.judgeTransport !== "api" &&
+        opts.judgeTransport !== "cli"
+      ) {
+        console.error(
+          `repofit: --judge-transport must be 'api' or 'cli' (got '${opts.judgeTransport}')`,
+        );
         process.exit(2);
       }
       let output: OutputMode = "human";
@@ -73,7 +92,10 @@ program
           dirty: opts.dirty,
           output,
           artifact: opts.artifact,
+          html: opts.html,
           include: opts.include,
+          noCache: opts.cache === false,
+          judgeTransport: opts.judgeTransport as "api" | "cli" | undefined,
         });
         process.exit(exitCode);
       } catch (err) {
