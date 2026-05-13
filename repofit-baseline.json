@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "acceptedAt": "2026-05-13T12:57:40.143Z",
+  "acceptedAt": "2026-05-13T13:25:57.057Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
       "version": "1.0.0"
     }
   ],
-  "fitness": 93.03610466872482,
+  "fitness": 92.71284296901196,
   "dimensions": {
-    "context": 84.22535211267606,
-    "consistency": 98.57142857142857,
+    "context": 85.81395348837209,
+    "consistency": 97.33333333333333,
     "cost": 80,
-    "feedback": 95.41984732824426,
+    "feedback": 93.1297709923664,
     "latency": 100,
     "safety": 100
   },
@@ -27,12 +27,14 @@
     "deps.audit-configured": 100,
     "deps.lockfile-present": 100,
     "docs.contributing-present": 100,
+    "docs.links-resolved": 100,
     "docs.readme-present": 100,
     "docs.readme-substance": 50,
     "editorconfig.present": 100,
     "format.configured": 100,
     "hooks.precommit-present": 100,
     "lint.configured": 100,
+    "readme.commands-runnable": 100,
     "safety.dangerous-script-flags": 100,
     "secrets.dotenv-gitignored": 100,
     "tests.runner-configured": 100,
@@ -56,6 +58,7 @@
     "latency.typecheck": 100,
     "lint.clean": 100,
     "types.clean": 100,
+    "agent.guidance-fresh": 80,
     "agent.guidance-quality": 100,
     "arch.boundaries-clear": 80,
     "arch.doc-quality": 50,
@@ -64,7 +67,7 @@
     "errors.actionability": 80,
     "runtime.dev-loop-bootable": 80,
     "specs.quality": 80,
-    "tests.cover-public-surface": 80
+    "tests.cover-public-surface": 50
   },
-  "commit": "f9bb79dbde82d38728b793c3a1bec2a19c905cd4"
+  "commit": "29560dacb17c1ecfe28e6e08313eaf0efe3180e2"
 }
