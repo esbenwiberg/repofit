@@ -42,6 +42,18 @@ inputs:
     description: "Category for the SARIF upload (lets multiple repofit runs coexist per PR)."
     required: false
     default: "repofit"
+  comment:
+    description: "Path to write the markdown PR-comment body to. Set to '' to skip."
+    required: false
+    default: "repofit-comment.md"
+  post-comment:
+    description: "Post the rendered markdown as a sticky comment on the PR (true/false). Requires `pull-requests: write`."
+    required: false
+    default: "true"
+  comment-header:
+    description: "Header for the sticky comment (lets multiple repofit configurations coexist on one PR)."
+    required: false
+    default: "repofit"
   upload-artifacts:
     description: "Upload JSON/HTML reports as workflow artifacts (true/false)."
     required: false
@@ -67,6 +79,9 @@ outputs:
   report-sarif:
     description: "Path to the SARIF report (relative to working-directory)."
     value: ${{ inputs.sarif }}
+  report-comment:
+    description: "Path to the markdown PR-comment body (relative to working-directory)."
+    value: ${{ inputs.comment }}
 
 runs:
   using: "composite"
@@ -97,6 +112,9 @@ runs:
         ARGS="--ci --artifact ${{ inputs.artifact }} --html ${{ inputs.html }}"
         if [ -n "${{ inputs.sarif }}" ]; then
           ARGS="$ARGS --sarif ${{ inputs.sarif }}"
+        fi
+        if [ -n "${{ inputs.comment }}" ]; then
+          ARGS="$ARGS --comment ${{ inputs.comment }}"
         fi
         if [ -n "${{ inputs.include }}" ]; then
           # commander accepts repeated --include or a single comma-separated value
@@ -158,4 +176,42 @@ runs:
       with:
         sarif_file: ${{ steps.cwd.outputs.dir }}/${{ inputs.sarif }}
         category: ${{ inputs.sarif-category }}
+      continue-on-error: true
+
+    - name: Post PR comment
+      if: >-
+        always() &&
+        inputs.post-comment == 'true' &&
+        inputs.comment != '' &&
+        github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const cwd = `${{ steps.cwd.outputs.dir }}`;
+          const file = path.join(cwd, `${{ inputs.comment }}`);
+          if (!fs.existsSync(file)) {
+            core.warning(`repofit: no comment file at ${file}; skipping PR comment.`);
+            return;
+          }
+          const body = fs.readFileSync(file, 'utf8');
+          const header = `${{ inputs.comment-header }}`;
+          const marker = `<!-- repofit-comment:${header} -->`;
+          const wrapped = `${marker}\n${body}`;
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const { data: comments } = await github.rest.issues.listComments({
+            owner, repo, issue_number, per_page: 100,
+          });
+          const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner, repo, comment_id: existing.id, body: wrapped,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner, repo, issue_number, body: wrapped,
+            });
+          }
       continue-on-error: true

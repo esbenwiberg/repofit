@@ -14,6 +14,7 @@ import { renderCi } from "../reporters/ci.js";
 import { renderHtml } from "../reporters/html.js";
 import { renderHuman } from "../reporters/human-minimal.js";
 import { type ReportInput, renderJson } from "../reporters/json.js";
+import { renderMarkdown } from "../reporters/markdown.js";
 import { renderSarif } from "../reporters/sarif.js";
 import { DEFAULT_TIERS, runProbesDetailed } from "../runner/tiered.js";
 import type { Tier } from "../sdk/types.js";
@@ -34,6 +35,7 @@ export type CheckOptions = {
   artifact?: string | undefined;
   html?: string | undefined;
   sarif?: string | undefined;
+  comment?: string | undefined;
   include?: Tier[];
   noCache?: boolean;
   judgeTransport?: "api" | "cli";
@@ -124,10 +126,15 @@ export async function check(opts: CheckOptions): Promise<number> {
     await writeFile(opts.sarif, renderSarif(reportInput), "utf8");
   }
 
+  if (opts.comment) {
+    await writeFile(opts.comment, renderMarkdown(reportInput), "utf8");
+  }
+
   if (output === "human") {
     console.log(renderHuman({ aggregated, results, verdict, drift, cost }));
     if (opts.html) console.log(`  html     ${opts.html}`);
     if (opts.sarif) console.log(`  sarif    ${opts.sarif}`);
+    if (opts.comment) console.log(`  comment  ${opts.comment}`);
     return verdict.pass ? 0 : 1;
   }
 

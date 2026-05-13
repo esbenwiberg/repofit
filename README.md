@@ -49,6 +49,7 @@ repofit --json           # full machine-readable report
 repofit --ci             # one-line verdict + GitHub Actions annotations
 repofit --html report.html   # self-contained HTML report
 repofit --sarif report.sarif # SARIF 2.1.0 for GitHub code scanning
+repofit --comment body.md    # markdown body for a sticky PR comment
 repofit --include executed  # also run the slow stuff (test/build/lint timings)
 ```
 

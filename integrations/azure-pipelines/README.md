@@ -69,6 +69,8 @@ connection that has read access to GitHub.
 | `artifact`         | string  | `repofit-report.json`            | Path to write the JSON report to (relative to `cwd`).                      |
 | `html`             | string  | `repofit-report.html`            | Path to write the HTML report to. Set to `''` to skip.                     |
 | `sarif`            | string  | `repofit-report.sarif`           | Path to write the SARIF 2.1.0 report. Set to `''` to skip.                 |
+| `comment`          | string  | `repofit-comment.md`             | Path to write the markdown PR-comment body. Set to `''` to skip.           |
+| `postComment`      | boolean | `true`                           | Post the rendered markdown as a PR comment (only fires on PR builds).      |
 | `publishArtifacts` | boolean | `true`                           | Publish the JSON/HTML/SARIF reports as pipeline artifacts.                 |
 | `artifactName`     | string  | `repofit-report`                 | Base name for the published artifacts (`-json` / `-html` are appended).    |
 | `failOn`           | string  | `error`                          | When to fail the step: `warn` \| `error` \| `never`.                       |
@@ -143,6 +145,21 @@ take ~1–3 minutes longer.
 
 Useful for the first weeks after wiring repofit up — surface the score and
 artifacts without blocking merges.
+
+## PR comments
+
+When `postComment` is true (the default) and the build was triggered by a PR,
+the template posts a comment with the score, dimension table, and top
+regressions. This requires:
+
+1. The build pipeline's identity has **Contribute to pull requests** permission
+   on the target repo. (Project Settings → Repositories → your repo →
+   Permissions → look for `<Project> Build Service` and grant it.)
+2. `System.AccessToken` is available to the script step (the template wires
+   `env: SYSTEM_ACCESSTOKEN: $(System.AccessToken)` automatically).
+
+Skip posting with `postComment: false`. The markdown file is still produced
+and (if `publishArtifacts` is true) published as an artifact.
 
 ## Notes
 

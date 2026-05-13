@@ -45,8 +45,35 @@ job on hard gate failures, and uploads `repofit-report.json` +
 | `sarif`            | `repofit-report.sarif` | Path to write the SARIF 2.1.0 report to. Set to `""` to skip.                |
 | `upload-sarif`     | `true`                 | Upload the SARIF report to GitHub code scanning.                             |
 | `sarif-category`   | `repofit`              | SARIF category — lets multiple repofit runs coexist per PR.                  |
+| `comment`          | `repofit-comment.md`   | Path to write the markdown PR-comment body. Set to `""` to skip.             |
+| `post-comment`     | `true`                 | Post the markdown as a sticky PR comment. Requires `pull-requests: write`.   |
+| `comment-header`   | `repofit`              | Header that uniquely identifies the sticky comment.                          |
 | `upload-artifacts` | `true`                 | Whether to upload the JSON/HTML reports as workflow artifacts.               |
 | `fail-on`          | `error`                | Verdict severity that fails the job: `warn` \| `error` \| `never`.           |
+
+### PR sticky comment
+
+By default, the action posts a sticky comment on the PR with the verdict,
+score delta, dimension table, and top regressions. The comment updates in
+place on every push (one per `comment-header`, so you can have multiple
+repofit configurations side-by-side).
+
+Requires `pull-requests: write`:
+
+```yaml
+jobs:
+  repofit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: esbenwiberg/repofit/integrations/github-action@v1
+```
+
+Set `post-comment: false` to skip posting (the markdown is still written to
+disk and uploaded as an artifact).
 
 ### SARIF + GitHub code scanning
 

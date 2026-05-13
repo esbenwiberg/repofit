@@ -43,6 +43,10 @@ program
   .option("--html <path>", "Write a self-contained HTML report to this path.")
   .option("--sarif <path>", "Write a SARIF 2.1.0 report to this path (for GitHub code scanning).")
   .option(
+    "--comment <path>",
+    "Write a markdown PR-comment body to this path (verdict + score + dimension table + top regressions).",
+  )
+  .option(
     "--include <tier>",
     "Opt-in tier (executed, reasoned). Comma-separate or repeat to add multiple.",
     parseInclude,
@@ -65,6 +69,7 @@ program
       artifact?: string;
       html?: string;
       sarif?: string;
+      comment?: string;
       include: Tier[];
       cache: boolean;
       judgeTransport?: string;
@@ -97,6 +102,7 @@ program
           artifact: opts.artifact,
           html: opts.html,
           sarif: opts.sarif,
+          comment: opts.comment,
           include: opts.include,
           noCache: opts.cache === false,
           judgeTransport: opts.judgeTransport as "api" | "cli" | undefined,

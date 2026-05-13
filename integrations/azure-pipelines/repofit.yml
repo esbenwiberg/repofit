@@ -57,6 +57,19 @@ parameters:
     type: string
     default: repofit-report.sarif
 
+  # Path (relative to cwd) to write the markdown PR-comment body. Set to ''
+  # to skip generation entirely.
+  - name: comment
+    type: string
+    default: repofit-comment.md
+
+  # Post the rendered markdown as a comment on the PR. Requires that the
+  # System.AccessToken has Contribute to pull requests permission. Skipped
+  # automatically outside PR builds.
+  - name: postComment
+    type: boolean
+    default: true
+
   # Publish JSON/HTML/SARIF reports as pipeline artifacts.
   - name: publishArtifacts
     type: boolean
@@ -90,6 +103,9 @@ steps:
       ARGS="--ci --artifact '${{ parameters.artifact }}' --html '${{ parameters.html }}'"
       if [ -n "${{ parameters.sarif }}" ]; then
         ARGS="$ARGS --sarif '${{ parameters.sarif }}'"
+      fi
+      if [ -n "${{ parameters.comment }}" ]; then
+        ARGS="$ARGS --comment '${{ parameters.comment }}'"
       fi
       if [ -n "${{ parameters.include }}" ]; then
         ARGS="$ARGS --include '${{ parameters.include }}'"
@@ -145,3 +161,30 @@ steps:
         displayName: "repofit: publish SARIF report"
         artifact: ${{ parameters.artifactName }}-sarif
         condition: and(always(), eq('${{ parameters.publishArtifacts }}', 'true'))
+
+  - ${{ if ne(parameters.comment, '') }}:
+      - bash: |
+          set -e
+          if [ "$BUILD_REASON" != "PullRequest" ]; then
+            echo "Not a PR build (Build.Reason=$BUILD_REASON); skipping PR comment."
+            exit 0
+          fi
+          if [ ! -f "${{ parameters.comment }}" ]; then
+            echo "No comment file at ${{ parameters.comment }}; skipping."
+            exit 0
+          fi
+          if [ -z "$SYSTEM_ACCESSTOKEN" ]; then
+            echo "SYSTEM_ACCESSTOKEN is empty; cannot post comment. Add 'env: SYSTEM_ACCESSTOKEN: \$(System.AccessToken)' on this step or the parent template invocation, and grant the build identity 'Contribute to pull requests' permission."
+            exit 0
+          fi
+          BODY=$(node -e "console.log(JSON.stringify(require('node:fs').readFileSync('${{ parameters.comment }}','utf8')))")
+          URL="$SYSTEM_TEAMFOUNDATIONCOLLECTIONURI$SYSTEM_TEAMPROJECTID/_apis/git/repositories/$BUILD_REPOSITORY_ID/pullRequests/$SYSTEM_PULLREQUEST_PULLREQUESTID/threads?api-version=7.1"
+          curl -sS -X POST -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+            -d "{\"comments\":[{\"content\":$BODY,\"commentType\":1}],\"status\":1}" \
+            "$URL" > /dev/null
+        displayName: "repofit: post PR comment"
+        condition: and(always(), eq('${{ parameters.postComment }}', 'true'))
+        workingDirectory: ${{ parameters.cwd }}
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
