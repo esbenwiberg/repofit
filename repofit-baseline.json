@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "acceptedAt": "2026-05-13T08:30:56.601Z",
+  "acceptedAt": "2026-05-13T09:01:55.554Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
       "version": "1.0.0"
     }
   ],
-  "fitness": 85.89594928880643,
+  "fitness": 90.74108093311841,
   "dimensions": {
-    "context": 75.89285714285715,
-    "consistency": 81.81818181818181,
-    "cost": 86.66666666666667,
-    "feedback": 85.10204081632652,
+    "context": 83.27868852459017,
+    "consistency": 98.18181818181819,
+    "cost": 80,
+    "feedback": 92.24489795918366,
     "latency": null,
     "safety": 100
   },
@@ -32,26 +32,26 @@
     "secrets.dotenv-gitignored": 100,
     "tests.runner-configured": 100,
     "types.configured": 100,
-    "arch.fitness-tests-configured": 0,
+    "arch.fitness-tests-configured": 100,
     "ci.runs-tests": 100,
     "docs.adr-presence": 0,
     "gitignore.comprehensive": 100,
     "hooks.gates-lint-test-build": 100,
     "secrets.precommit-scan-configured": 100,
     "size.directory-depth": 80,
-    "size.large-files": 100,
+    "size.large-files": 80,
     "size.repo-token-estimate": 80,
-    "specs.present": 0,
+    "specs.present": 100,
     "commits.conventional-followed": 100,
     "agent.guidance-quality": 80,
-    "arch.boundaries-clear": 100,
+    "arch.boundaries-clear": 80,
     "arch.doc-quality": 50,
     "docs.adr-quality": null,
     "docs.readme-clarity": 80,
-    "errors.actionability": 80,
+    "errors.actionability": 100,
     "runtime.dev-loop-bootable": 80,
-    "specs.quality": null,
+    "specs.quality": 80,
     "tests.cover-public-surface": 50
   },
-  "commit": "dc0a73eebce13e8cd1cf962b24693c4ec180114c"
+  "commit": "0153c5d78efd5912ccdaa35848e7ee99fa509caa"
 }
