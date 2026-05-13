@@ -230,3 +230,37 @@ export type GatherContext = {
   cwd: string;
   judge?: JudgeOptions;
 };
+
+export type FixActionWriteFile = {
+  kind: "write-file";
+  path: string;
+  content: string;
+  ifMissing?: boolean;
+};
+
+export type FixActionAppendLines = {
+  kind: "append-lines";
+  path: string;
+  lines: string[];
+  createIfMissing?: boolean;
+};
+
+export type FixAction = FixActionWriteFile | FixActionAppendLines;
+
+export type FixPlan = {
+  actions: FixAction[];
+  notes?: string[];
+};
+
+export type FixContext = {
+  cwd: string;
+  probe: Probe;
+  reading: Reading;
+};
+
+export type Fixer = {
+  probeId: string;
+  mode: "static";
+  describe: string;
+  plan(ctx: FixContext): Promise<FixPlan | null>;
+};

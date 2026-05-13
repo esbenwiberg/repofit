@@ -279,6 +279,51 @@ Waivers live in `repofit.config.json` under the top-level `waivers` array. The s
 
 **Best practice:** require a non-trivial `--reason` in code review. Waivers without context become technical debt no one remembers.
 
+## Authoring fixers (`repofit apply`)
+
+A **fixer** is a deterministic remediation paired with a probe. Where a probe says "you don't have a CLAUDE.md", a fixer says "here's a CLAUDE.md scaffold I can write for you." Users invoke fixers with `repofit apply` — dry run by default, `--write` to actually change files.
+
+```ts
+// fixers/agent-guidance-present.ts
+import { defineFixer } from "@esbenwiberg/repofit/sdk";
+
+export default defineFixer({
+  probeId: "agent.guidance-present",
+  mode: "static",
+  describe: "scaffold CLAUDE.md",
+  async plan({ cwd, probe, reading }) {
+    return {
+      actions: [
+        { kind: "write-file", path: "CLAUDE.md", content: "# …\n", ifMissing: true },
+      ],
+      notes: ["edit the scaffold to reflect the actual project before committing"],
+    };
+  },
+});
+```
+
+Export the fixer from your corpus alongside `probes` and `dimensions`:
+
+```ts
+// src/index.ts
+export const fixers = [agentGuidancePresentFixer /* … */];
+```
+
+### Action kinds
+
+- `{ kind: "write-file", path, content, ifMissing? }` — write a whole file. With `ifMissing: true`, skip if the file already exists (safe default for scaffolds).
+- `{ kind: "append-lines", path, lines, createIfMissing? }` — append lines that aren't already present in the file. Use this for `.gitignore` / `.editorconfig` / hook files where you're augmenting, not replacing.
+
+### When `plan` returns `null`
+
+If your fixer detects nothing to do (e.g. the file is already correct), return `null` from `plan`. The CLI will skip it cleanly.
+
+### Best practices
+
+- **Be conservative.** Prefer `ifMissing: true` and `append-lines` over destructive writes.
+- **Be specific.** The scaffold should give the user something to *react to*, not a perfect answer. A `TODO` is honest; a fabricated paragraph isn't.
+- **Don't over-script.** `apply` is for the obvious 80%. Anything that requires project knowledge (real README content, real ADRs from history) is better handled by an LLM-backed fixer (planned for v1.x).
+
 ## See also
 
 - [Probe schema](design/probe-schema.md) — the full type reference.

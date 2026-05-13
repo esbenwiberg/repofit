@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { VERSION } from "../index.js";
 import { TIERS, type Tier } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
+import { apply } from "./apply.js";
 import { check, type OutputMode } from "./check.js";
 import { explain } from "./explain.js";
 import { probeNew } from "./probe-new.js";
@@ -234,6 +235,27 @@ waive
   .action(async (hash: string, opts: { cwd: string }) => {
     try {
       const { stdout, exitCode } = await waiveRm({ cwd: opts.cwd, hash });
+      process.stdout.write(stdout);
+      process.exit(exitCode);
+    } catch (err) {
+      console.error(`repofit: ${errorMessage(err)}`);
+      process.exit(2);
+    }
+  });
+
+program
+  .command("apply")
+  .description("Plan or apply deterministic fixes for failing probes. Dry run by default.")
+  .option("--probe <id>", "Apply only the fixer for this probe id.")
+  .option("--cwd <path>", "Working directory.", process.cwd())
+  .option("--write", "Actually write the changes. Without this, only print the plan.")
+  .action(async (opts: { probe?: string; cwd: string; write?: boolean }) => {
+    try {
+      const { stdout, exitCode } = await apply({
+        cwd: opts.cwd,
+        probeId: opts.probe,
+        write: opts.write,
+      });
       process.stdout.write(stdout);
       process.exit(exitCode);
     } catch (err) {

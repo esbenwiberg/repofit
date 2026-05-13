@@ -1,4 +1,4 @@
-import type { DimensionRecipe, Probe } from "../sdk/types.js";
+import type { DimensionRecipe, Fixer, Probe } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
 
 export type LoadedCorpus = {
@@ -6,12 +6,14 @@ export type LoadedCorpus = {
   version: string;
   probes: Probe[];
   dimensions: DimensionRecipe[];
+  fixers: Fixer[];
 };
 
 type CorpusModule = {
   meta?: { name?: string; version?: string };
   probes?: Probe[];
   dimensions?: DimensionRecipe[];
+  fixers?: Fixer[];
 };
 
 const DEFAULT_CORPUS_PACKAGE = "@esbenwiberg/corpus-default";
@@ -36,5 +38,6 @@ export async function loadDefaultCorpus(): Promise<LoadedCorpus> {
     version: mod.meta?.version ?? "0.0.0",
     probes: mod.probes,
     dimensions: mod.dimensions,
+    fixers: Array.isArray(mod.fixers) ? mod.fixers : [],
   };
 }

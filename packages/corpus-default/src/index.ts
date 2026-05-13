@@ -5,6 +5,10 @@ import costDimension from "./dimensions/cost.js";
 import feedbackDimension from "./dimensions/feedback.js";
 import latencyDimension from "./dimensions/latency.js";
 import safetyDimension from "./dimensions/safety.js";
+import agentGuidancePresentFixer from "./fixers/agent-guidance-present.js";
+import docsReadmePresentFixer from "./fixers/docs-readme-present.js";
+import editorconfigPresentFixer from "./fixers/editorconfig-present.js";
+import gitignoreComprehensiveFixer from "./fixers/gitignore-comprehensive.js";
 import agentGuidanceNested from "./probes/agent-guidance-nested.js";
 import agentGuidancePresent from "./probes/agent-guidance-present.js";
 import agentGuidanceQuality from "./probes/agent-guidance-quality.js";
@@ -113,4 +117,11 @@ export const dimensions = [
   feedbackDimension,
   latencyDimension,
   safetyDimension,
+];
+
+export const fixers = [
+  agentGuidancePresentFixer,
+  docsReadmePresentFixer,
+  editorconfigPresentFixer,
+  gitignoreComprehensiveFixer,
 ];

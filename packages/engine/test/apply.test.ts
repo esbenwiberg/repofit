@@ -1,0 +1,100 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { apply } from "../src/cli/apply.js";
+
+let cwd: string;
+
+beforeEach(() => {
+  cwd = mkdtempSync(path.join(tmpdir(), "repofit-apply-"));
+});
+
+afterEach(() => {
+  rmSync(cwd, { recursive: true, force: true });
+});
+
+describe("apply command", () => {
+  test("dry-run shows plan when fixable findings exist", async () => {
+    const { stdout, exitCode } = await apply({ cwd });
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/dry run/);
+    expect(stdout).toMatch(/agent\.guidance-present/);
+    expect(stdout).toMatch(/\+ write\s+CLAUDE\.md/);
+    expect(stdout).toMatch(/docs\.readme-present/);
+    expect(stdout).toMatch(/editorconfig\.present/);
+  });
+
+  test("--write actually writes the files", async () => {
+    const { stdout, exitCode } = await apply({ cwd, write: true });
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/applied \d+ actions?/);
+    expect(stdout).toMatch(/wrote CLAUDE\.md/);
+    expect(stdout).toMatch(/wrote README\.md/);
+    expect(stdout).toMatch(/wrote \.editorconfig/);
+    expect(existsSync(path.join(cwd, "CLAUDE.md"))).toBe(true);
+    expect(existsSync(path.join(cwd, "README.md"))).toBe(true);
+    expect(existsSync(path.join(cwd, ".editorconfig"))).toBe(true);
+    const claude = readFileSync(path.join(cwd, "CLAUDE.md"), "utf8");
+    expect(claude).toMatch(/^# /);
+  });
+
+  test("--probe filters to one fixer", async () => {
+    const { stdout, exitCode } = await apply({
+      cwd,
+      probeId: "editorconfig.present",
+      write: true,
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/wrote \.editorconfig/);
+    expect(existsSync(path.join(cwd, ".editorconfig"))).toBe(true);
+    expect(existsSync(path.join(cwd, "CLAUDE.md"))).toBe(false);
+    expect(existsSync(path.join(cwd, "README.md"))).toBe(false);
+  });
+
+  test("--probe with no fixer returns error", async () => {
+    const { stdout, exitCode } = await apply({ cwd, probeId: "size.large-files" });
+    expect(exitCode).toBe(2);
+    expect(stdout).toMatch(/no fixer registered for probe 'size\.large-files'/);
+  });
+
+  test("write-file with ifMissing skips when file exists", async () => {
+    writeFileSync(path.join(cwd, "CLAUDE.md"), "# existing\n");
+    const { stdout, exitCode } = await apply({
+      cwd,
+      probeId: "agent.guidance-present",
+      write: true,
+    });
+    expect(exitCode).toBe(0);
+    // existing CLAUDE.md is enough to flip the probe to passing — so it isn't planned at all.
+    expect(stdout).toMatch(/no fixable findings/);
+    expect(readFileSync(path.join(cwd, "CLAUDE.md"), "utf8")).toBe("# existing\n");
+  });
+
+  test("gitignore fixer appends only missing lines", async () => {
+    writeFileSync(path.join(cwd, ".gitignore"), "node_modules/\n");
+    const { stdout, exitCode } = await apply({
+      cwd,
+      probeId: "gitignore.comprehensive",
+      write: true,
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/appended \d+ lines? to \.gitignore/);
+    const gi = readFileSync(path.join(cwd, ".gitignore"), "utf8");
+    expect(gi).toMatch(/^node_modules\//);
+    expect(gi).toMatch(/\.DS_Store/);
+    expect(gi).toMatch(/dist\//);
+    // Should NOT have duplicated the existing line.
+    expect(gi.match(/node_modules\//g)?.length).toBe(1);
+  });
+
+  test("returns 'no fixable findings' when all fixable probes pass", async () => {
+    writeFileSync(path.join(cwd, "CLAUDE.md"), "# x\n");
+    writeFileSync(path.join(cwd, "README.md"), "# x\n");
+    writeFileSync(path.join(cwd, ".editorconfig"), "root=true\n");
+    writeFileSync(path.join(cwd, ".gitignore"), "node_modules/\ndist/\n.env\n.DS_Store\n.idea/\n");
+    const { stdout, exitCode } = await apply({ cwd });
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/no fixable findings/);
+  });
+});
