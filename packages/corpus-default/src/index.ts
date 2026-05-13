@@ -14,6 +14,7 @@ import archDocPresent from "./probes/arch-doc-present.js";
 import archDocQuality from "./probes/arch-doc-quality.js";
 import archFitnessTestsConfigured from "./probes/arch-fitness-tests-configured.js";
 import changelogStrategyDeclared from "./probes/changelog-strategy-declared.js";
+import ciConfigured from "./probes/ci-configured.js";
 import ciRunsTests from "./probes/ci-runs-tests.js";
 import commitsConventionalFollowed from "./probes/commits-conventional-followed.js";
 import docsAdrPresence from "./probes/docs-adr-presence.js";
@@ -67,6 +68,7 @@ export const probes = [
   archDocQuality,
   archFitnessTestsConfigured,
   changelogStrategyDeclared,
+  ciConfigured,
   ciRunsTests,
   commitsConventionalFollowed,
   docsAdrPresence,
