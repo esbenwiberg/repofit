@@ -55,10 +55,6 @@ export async function loadCorpora(opts: LoadCorporaOptions = {}): Promise<Loaded
   return mergeCorpora(loaded);
 }
 
-export async function loadDefaultCorpus(): Promise<LoadedCorpus> {
-  return loadCorpora();
-}
-
 export function mergeCorpora(loaded: { pkg: string; mod: CorpusModule }[]): LoadedCorpus {
   const probesById = new Map<string, { probe: Probe; from: string }>();
   const dimsById = new Map<string, { dim: DimensionRecipe; from: string }>();
