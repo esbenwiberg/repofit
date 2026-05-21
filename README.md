@@ -29,7 +29,7 @@ Wire it into a repo:
 
 ```bash
 npx @esbenwiberg/repofit --init    # writes repofit.config.json
-npx @esbenwiberg/repofit --accept  # writes repofit-baseline.json
+npx @esbenwiberg/repofit check --accept  # accepts current scores as repofit-baseline.json
 ```
 
 Commit both files. From then on, `repofit check --ci` in CI gates against
@@ -47,7 +47,10 @@ repofit --sarif report.sarif    # SARIF 2.1.0 for GitHub code scanning
 repofit --comment body.md       # markdown body for a sticky PR comment
 repofit --include executed      # also run commands (test/build/lint timings)
 repofit --include reasoned      # also run LLM-judged probes
-repofit --include executed,reasoned
+repofit check --include executed,reasoned --html repofit-report.html
+                                # full scan + self-contained HTML report
+repofit help                    # show common commands and examples
+repofit help check              # show options for one command
 ```
 
 ## What it scores
