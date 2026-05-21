@@ -5,34 +5,48 @@ const TEST_FILE = /(?:\.test\.|\.spec\.|__tests__|^tests?\/|^e2e\/)/i;
 const SOURCE_FILE = /\.(?:ts|tsx|js|jsx|mjs|cjs|py|cs|go|rs|java|kt)$/i;
 const SKIP_DIRS = /(?:^|\/)(?:node_modules|dist|build|coverage|\.next|\.nuxt|out|target|bin|obj)\//;
 
-const FLAKE_PATTERNS: { pattern: RegExp; severity: Severity; message: string }[] = [
+const WALL_CLOCK_TIME = [
+  /\bDate\.now\s*\(/,
+  /\bnew\s+Date\s*\(\s*\)/,
+  /\btime\.time\s*\(/,
+  /\bInstant\.now\s*\(/,
+];
+
+const FLAKE_PATTERNS: {
+  matches: (line: string) => boolean;
+  severity: Severity;
+  message: string;
+}[] = [
   {
-    pattern: /\b(?:test|it|describe)\.only\s*\(/,
+    matches: (line) => /\b(?:test|it|describe)\.only\s*\(/.test(line),
     severity: "error",
     message: "commits a focused-only test",
   },
   {
-    pattern: /\b(?:test|it|describe)\.skip\s*\(/,
+    matches: (line) => /\b(?:test|it|describe)\.skip\s*\(/.test(line),
     severity: "warn",
     message: "skips a test without an executable signal",
   },
   {
-    pattern: /\bMath\.random\s*\(|\brandomUUID\s*\(|\brandint\s*\(|\brandom\.\w+\s*\(/,
+    matches: (line) =>
+      /\bMath\.random\s*\(|\brandomUUID\s*\(|\brandint\s*\(|\brandom\.\w+\s*\(/.test(line),
     severity: "warn",
     message: "uses randomness without an obvious seed",
   },
   {
-    pattern: /\bDate\.now\s*\(|\bnew Date\s*\(|\btime\.time\s*\(|\bInstant\.now\s*\(/,
+    matches: (line) => WALL_CLOCK_TIME.some((pattern) => pattern.test(line)),
     severity: "warn",
     message: "depends on wall-clock time",
   },
   {
-    pattern: /\bsetTimeout\s*\([^,]+,\s*(?:[1-9]\d{2,}|[1-9]\d{3,})|\bwaitForTimeout\s*\(/,
+    matches: (line) =>
+      /\bsetTimeout\s*\([^,]+,\s*(?:[1-9]\d{2,}|[1-9]\d{3,})|\bwaitForTimeout\s*\(/.test(line),
     severity: "warn",
     message: "uses fixed sleeps instead of waiting on a condition",
   },
   {
-    pattern: /\bfetch\s*\(\s*["'`]https?:\/\/|\baxios\.\w+\s*\(\s*["'`]https?:\/\//,
+    matches: (line) =>
+      /\bfetch\s*\(\s*["'`]https?:\/\/|\baxios\.\w+\s*\(\s*["'`]https?:\/\//.test(line),
     severity: "warn",
     message: "calls an external network endpoint from a test",
   },
@@ -53,11 +67,12 @@ export default defineProbe({
     the last change broke behavior. This static probe avoids running large
     suites and instead flags common flake smells in test files: focused tests,
     skips, unseeded randomness, wall-clock time, fixed sleeps, and live
-    external network calls.
+    external network calls. Fixed date literals are allowed; ambient clock
+    reads should be injected, frozen, or otherwise made explicit.
   `,
 
   remediation:
-    "Remove focused tests before committing, turn skips into tracked TODOs, seed randomness, inject clocks, replace fixed sleeps with condition waits, and mock or record external network calls. Deterministic failures are the currency agents can spend.",
+    "Remove focused tests before committing, turn skips into tracked TODOs, seed randomness, inject or freeze clocks for ambient time, replace fixed sleeps with condition waits, and mock or record external network calls. Deterministic failures are the currency agents can spend.",
 
   async detect(ev) {
     const testPaths = ev.size_stats.files
@@ -76,8 +91,8 @@ export default defineProbe({
       const lines = text.split(/\n/);
       for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i] ?? "";
-        for (const { pattern, severity, message } of FLAKE_PATTERNS) {
-          if (pattern.test(line)) {
+        for (const { matches, severity, message } of FLAKE_PATTERNS) {
+          if (matches(line)) {
             items.push({
               location: { path, range: { startLine: i + 1 } },
               severity,
@@ -161,6 +176,50 @@ export default defineProbe({
           ],
         },
         score: 0,
+      },
+    },
+    {
+      name: "fixed-date-literals",
+      evidence: {
+        files: {
+          "src/date-range.test.ts":
+            'test("formats fixed fiscal dates", () => {\n  expect(formatRange(new Date("2026-05-21T00:00:00.000Z"), new Date(2026, 4, 22))).toBe("May 21-22, 2026");\n});\n',
+        },
+        size_stats: {
+          source: "git-ls-files",
+          totalBytes: 190,
+          totalFiles: 1,
+          files: [{ path: "src/date-range.test.ts", bytes: 190, lines: 3, depth: 1 }],
+        },
+      },
+      expect: { reading: { kind: "inventory", items: [] }, score: 100 },
+    },
+    {
+      name: "ambient-date-constructor",
+      evidence: {
+        files: {
+          "src/cache.test.ts":
+            'test("marks entries as fresh", () => {\n  expect(isFresh(new Date(), ttl)).toBe(true);\n});\n',
+        },
+        size_stats: {
+          source: "git-ls-files",
+          totalBytes: 100,
+          totalFiles: 1,
+          files: [{ path: "src/cache.test.ts", bytes: 100, lines: 3, depth: 1 }],
+        },
+      },
+      expect: {
+        reading: {
+          kind: "inventory",
+          items: [
+            {
+              location: { path: "src/cache.test.ts", range: { startLine: 2 } },
+              severity: "warn",
+              message: "depends on wall-clock time",
+            },
+          ],
+        },
+        score: 80,
       },
     },
   ],
