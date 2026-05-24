@@ -18,11 +18,8 @@ import { nodePackageSubsystem } from "./node-package.js";
 import { pythonProjectSubsystem } from "./python-project.js";
 
 /**
- * Default precedence when multiple manifests are present in the same repo.
- * Used when the user hasn't set `toolchain.primaryStack` in config.
- * Node first because it's the most common host stack in tool repos; the
- * other three follow in order of how often a multi-stack repo is
- * "X with a sidecar in Y" for each Y.
+ * Tie-breaker when multiple manifests are present and the detected stacks have
+ * equal runnable command coverage.
  */
 const STACK_PRECEDENCE: ToolchainStack[] = ["node", "python", "dotnet", "go"];
 
@@ -56,9 +53,12 @@ export type ToolchainInputs = {
  * primary, per-phase commands).
  */
 export function resolve(ctx: GatherContext, inputs: ToolchainInputs): ToolchainEvidence {
-  const stacks = detectStacks(inputs);
+  const detectedStacks = detectStacks(inputs);
   const tcCtx: ToolchainContext = ctx.toolchain ?? {};
-  const primary = pickPrimary(stacks, tcCtx.primaryStack);
+  const primary = pickPrimary(detectedStacks, tcCtx.primaryStack, inputs, ctx);
+  const stacks = primary
+    ? [primary, ...detectedStacks.filter((stack) => stack !== primary)]
+    : detectedStacks;
   const commands: ToolchainEvidence["commands"] = {
     build: null,
     test: null,
@@ -85,9 +85,28 @@ function detectStacks(inputs: ToolchainInputs): ToolchainStack[] {
 function pickPrimary(
   stacks: ToolchainStack[],
   override: ToolchainStack | undefined,
+  inputs: ToolchainInputs,
+  ctx: GatherContext,
 ): ToolchainStack | null {
   if (override && stacks.includes(override)) return override;
-  return stacks[0] ?? null;
+  let best: ToolchainStack | null = null;
+  let bestScore = -1;
+  for (const stack of stacks) {
+    const score = commandCoverage(stack, inputs, ctx);
+    if (score > bestScore) {
+      best = stack;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function commandCoverage(
+  stack: ToolchainStack,
+  inputs: ToolchainInputs,
+  ctx: GatherContext,
+): number {
+  return PHASES.filter((phase) => defaultArgvFor(phase, stack, inputs, ctx) !== null).length;
 }
 
 function resolvePhase(
@@ -158,32 +177,59 @@ function nodeArgv(phase: ToolchainPhase, node: NodePackageEvidence, cwd: string)
 
 function pythonArgv(phase: ToolchainPhase, python: PythonProjectEvidence): string[] | null {
   const tools = python.pyproject?.tools ?? [];
-  const hasTool = (name: string) => tools.includes(name);
+  const toolHints = python.pyproject?.toolHints ?? [];
+  const requirementHints = python.requirementsToolHints ?? [];
+  const configFiles = python.configFiles ?? [];
+  const hasTool = (name: string) =>
+    tools.includes(name) || toolHints.includes(name) || requirementHints.includes(name);
+  const hasConfig = (pattern: RegExp) => configFiles.some((path) => pattern.test(path));
 
   if (phase === "build") {
     return python.pyproject?.hasBuildSystem ? ["python", "-m", "build"] : null;
   }
   if (phase === "test") {
-    if (hasTool("pytest")) return ["pytest"];
-    // Be conservative — only suggest pytest if it's actually configured.
+    if (hasTool("tox") || hasConfig(/(?:^|\/)tox\.ini$/i)) return ["tox"];
+    if (
+      hasTool("pytest") ||
+      hasConfig(/(?:^|\/)(?:pytest\.ini|conftest\.py)$/i) ||
+      hasConfig(/(?:^|\/)pyproject\.toml$/i)
+    ) {
+      return ["pytest"];
+    }
+    // Be conservative — only suggest pytest if it is actually configured.
     return null;
   }
   if (phase === "lint") {
     const hasRuff = hasTool("ruff");
     const hasFlake8 = hasTool("flake8");
     const hasPylint = hasTool("pylint");
+    const hasRuffConfig = hasConfig(/(?:^|\/)(?:ruff\.toml|\.ruff\.toml)$/i);
+    const hasFlake8Config = hasConfig(/(?:^|\/)\.flake8$/i);
+    const hasPylintConfig = hasConfig(/(?:^|\/)(?:\.pylintrc|pylintrc)$/i);
     // Multiple linters configured → ambiguous, defer to explicit config.
-    const count = [hasRuff, hasFlake8, hasPylint].filter(Boolean).length;
+    const ruff = hasRuff || hasRuffConfig;
+    const flake8 = hasFlake8 || hasFlake8Config;
+    const pylint = hasPylint || hasPylintConfig;
+    const count = [ruff, flake8, pylint].filter(Boolean).length;
     if (count > 1) return null;
-    if (hasRuff) return ["ruff", "check", "."];
+    if (ruff) return ["ruff", "check", "."];
+    if (flake8) return ["flake8", "."];
+    if (pylint) return ["pylint", "."];
     return null;
   }
   if (phase === "format") {
-    if (hasTool("ruff")) return ["ruff", "format", "--check", "."];
+    if (hasTool("ruff") || hasConfig(/(?:^|\/)(?:ruff\.toml|\.ruff\.toml)$/i)) {
+      return ["ruff", "format", "--check", "."];
+    }
+    if (hasTool("black")) return ["black", "--check", "."];
+    if (hasTool("autopep8")) return ["autopep8", "--check", "--recursive", "."];
+    if (hasTool("yapf")) return ["yapf", "--diff", "--recursive", "."];
+    if (hasTool("isort")) return ["isort", "--check-only", "."];
     return null;
   }
   if (phase === "typecheck") {
-    if (hasTool("mypy")) return ["mypy", "."];
+    if (hasTool("mypy") || hasConfig(/(?:^|\/)(?:mypy\.ini|\.mypy\.ini)$/i)) return ["mypy", "."];
+    if (hasTool("pyright") || hasConfig(/(?:^|\/)pyrightconfig\.json$/i)) return ["pyright"];
     return null;
   }
   return null;

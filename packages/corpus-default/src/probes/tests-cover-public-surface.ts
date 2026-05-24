@@ -1,25 +1,23 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
 
-const PROBE_VERSION = "1.0.0";
+const PROBE_VERSION = "2.0.0";
 const MAX_SOURCE_FILES = 30;
 const MAX_TEST_FILES = 30;
 const MAX_INPUT_CHARS = 12_000;
 
-const TEST_FILE = /(?:\.test\.|\.spec\.|__tests__|^tests?\/)/i;
-const EXPORT_LINE =
-  /^\s*export\s+(?:(?:async\s+)?function|class|const|let|var|interface|type|enum|default)\s+\w+/m;
-const EXPORT_NAMED_BRACE = /^\s*export\s*\{[^}]+\}/m;
-const IMPORT_LINE = /^\s*import\s.+?from\s+["'][^"']+["']/m;
-const SOURCE_FILE = /\.(?:ts|tsx|js|mjs|cjs)$/;
-const SKIP_DIRS = /(?:^|\/)(?:node_modules|dist|build|coverage|\.next|\.nuxt|out)\//;
+const TEST_FILE =
+  /(?:\.test\.|\.spec\.|__tests__|^tests?\/|(?:^|\/)test_[^/]+\.py$|(?:^|\/)[^/]+_test\.go$|(?:^|\/)[^/]+Tests?\.cs$)/i;
+const SOURCE_FILE = /\.(?:ts|tsx|js|jsx|mjs|cjs|py|cs|go)$/i;
+const SKIP_DIRS =
+  /(?:^|\/)(?:node_modules|dist|build|coverage|\.next|\.nuxt|out|\.venv|venv|__pycache__|bin|obj)\//;
 
 const RUBRIC = {
-  task: "Judge whether the test suite meaningfully covers this project's public surface — the named exports an agent would likely modify — based on what gets imported in tests.",
+  task: "Judge whether the test suite meaningfully covers this project's public surface — the exported/public functions, classes, types, and packages an agent would likely modify — based on what tests import or reference.",
   criteria: [
     {
       id: "surface-named",
       description:
-        "Do the project's named exports (functions, classes, types from index/entry files) appear by name in test imports? Tests that only import and run main entry points without reference to specific exports score low; tests that import named symbols and exercise them score high.",
+        "Do the project's public symbols (JS/TS exports, Python top-level public defs/classes, Go exported identifiers, .NET public types/members) appear by name in test imports or references? Tests that only run main entry points without reference to specific public symbols score low.",
     },
     {
       id: "breadth",
@@ -40,6 +38,67 @@ function extract(text: string, pattern: RegExp): string[] {
     if (pattern.test(line)) out.push(line.trim());
   }
   return out;
+}
+
+function extractPublicSurface(path: string, text: string): string[] {
+  if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/i.test(path)) {
+    return [
+      ...extract(
+        text,
+        /^\s*export\s+(?:(?:async\s+)?function|class|const|let|var|interface|type|enum|default)\s+\w+/,
+      ),
+      ...extract(text, /^\s*export\s*\{[^}]+\}/),
+    ];
+  }
+  if (/\.py$/i.test(path)) {
+    return [
+      ...extract(text, /^(?:async\s+)?def\s+[A-Za-z]\w*\s*\(/),
+      ...extract(text, /^class\s+[A-Za-z]\w*\b/),
+    ];
+  }
+  if (/\.go$/i.test(path)) {
+    return [
+      ...extract(text, /^func\s+(?:\([^)]*\)\s*)?[A-Z]\w*\s*\(/),
+      ...extract(text, /^type\s+[A-Z]\w*\b/),
+      ...extract(text, /^var\s+[A-Z]\w*\b/),
+      ...extract(text, /^const\s+[A-Z]\w*\b/),
+    ];
+  }
+  if (/\.cs$/i.test(path)) {
+    return [
+      ...extract(
+        text,
+        /^\s*public\s+(?:sealed\s+|abstract\s+|static\s+|partial\s+)*(?:class|record|interface|enum|struct)\s+\w+/,
+      ),
+      ...extract(
+        text,
+        /^\s*public\s+(?:static\s+|virtual\s+|override\s+|async\s+)*[\w<>[\],.?]+\s+\w+\s*\(/,
+      ),
+    ];
+  }
+  return [];
+}
+
+function extractTestReferences(path: string, text: string): string[] {
+  if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/i.test(path)) {
+    return extract(text, /^\s*import\s.+?from\s+["'][^"']+["']/);
+  }
+  if (/\.py$/i.test(path)) {
+    return [
+      ...extract(text, /^\s*from\s+[A-Za-z_][\w.]*\s+import\s+.+/),
+      ...extract(text, /^\s*import\s+[A-Za-z_][\w.]*(?:\s+as\s+\w+)?/),
+    ];
+  }
+  if (/\.go$/i.test(path)) {
+    return [
+      ...extract(text, /^\s*import\s+(?:\w+\s+)?".+"/),
+      ...extract(text, /^\s*(?:\w+\s+)?".+"$/),
+    ];
+  }
+  if (/\.cs$/i.test(path)) {
+    return extract(text, /^\s*using\s+[\w.]+;/);
+  }
+  return [];
 }
 
 export default defineProbe({
@@ -85,7 +144,7 @@ export default defineProbe({
     for (const p of sourcesToScan) {
       const text = await ev.files.readText(p);
       if (!text) continue;
-      const lines = [...extract(text, EXPORT_LINE), ...extract(text, EXPORT_NAMED_BRACE)];
+      const lines = extractPublicSurface(p, text);
       for (const l of lines) exportLines.push(`${p}: ${l}`);
     }
 
@@ -94,7 +153,7 @@ export default defineProbe({
     for (const p of testsToScan) {
       const text = await ev.files.readText(p);
       if (!text) continue;
-      const lines = extract(text, IMPORT_LINE);
+      const lines = extractTestReferences(p, text);
       for (const l of lines) importLines.push(`${p}: ${l}`);
     }
 
@@ -111,10 +170,10 @@ export default defineProbe({
       "# Test file paths",
       testsToScan.join("\n"),
       "",
-      "# Exports from source files",
+      "# Public surface from source files",
       exportLines.join("\n"),
       "",
-      "# Imports inside test files",
+      "# Imports/references inside test files",
       importLines.join("\n"),
     );
     const input = inputParts.join("\n").slice(0, MAX_INPUT_CHARS);
@@ -191,6 +250,41 @@ export default defineProbe({
           score: 80,
           perCriterion: { "surface-named": 80, breadth: 80, discoverability: 80 },
           rationale: "Named exports referenced in colocated tests.",
+          model: "fixture",
+        },
+        score: 80,
+      },
+    },
+    {
+      name: "python-public-surface",
+      evidence: {
+        size_stats: {
+          source: "git-ls-files",
+          totalBytes: 200,
+          totalFiles: 2,
+          files: [
+            { path: "src/demo/scoring.py", bytes: 100, lines: 10, depth: 2 },
+            { path: "tests/test_scoring.py", bytes: 100, lines: 10, depth: 1 },
+          ],
+        },
+        files: {
+          "src/demo/scoring.py": "def score(value: int) -> int:\n    return value * 2\n",
+          "tests/test_scoring.py":
+            "from demo.scoring import score\n\ndef test_score():\n    assert score(2) == 4\n",
+        },
+        judge: {
+          score: 80,
+          perCriterion: { "surface-named": 80, breadth: 80, discoverability: 80 },
+          rationale: "Python public function imported by name from mirrored tests.",
+          model: "fixture",
+        },
+      },
+      expect: {
+        reading: {
+          kind: "judge",
+          score: 80,
+          perCriterion: { "surface-named": 80, breadth: 80, discoverability: 80 },
+          rationale: "Python public function imported by name from mirrored tests.",
           model: "fixture",
         },
         score: 80,

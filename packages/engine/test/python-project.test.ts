@@ -75,6 +75,8 @@ strict = true
 testpaths = ["tests"]
 `,
     );
+    writeFileSync(join(tmp, "pytest.ini"), "[pytest]\ntestpaths = tests\n");
+    writeFileSync(join(tmp, "requirements-dev.txt"), "pyright==1.1.0\nblack>=24\n");
     gitInit(tmp);
     const ev = await pythonProjectSubsystem.gather({ cwd: tmp });
     expect(ev.present).toBe(true);
@@ -82,6 +84,9 @@ testpaths = ["tests"]
     expect(ev.pyproject?.hasBuildSystem).toBe(true);
     expect(ev.pyproject?.projectName).toBe("example-app");
     expect(ev.pyproject?.tools).toEqual(["mypy", "pytest", "ruff"]);
+    expect(ev.pyproject?.toolHints).toEqual(["mypy", "pytest", "ruff"]);
+    expect(ev.requirementsToolHints).toEqual(["black", "pyright"]);
+    expect(ev.configFiles).toEqual(["pytest.ini"]);
   });
 
   test("detects poetry/uv/Pipfile lock and setup.cfg/py", async () => {

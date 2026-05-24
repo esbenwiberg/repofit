@@ -65,6 +65,32 @@ describe("toolchain.resolve — stack detection", () => {
     expect(out.primary).toBe("node");
   });
 
+  test("node sidecar + configured python → primary=python by command coverage", () => {
+    const i = emptyInputs();
+    i.node = {
+      present: true,
+      dependencies: {},
+      devDependencies: {},
+      scripts: { dev: "vite" },
+      raw: {},
+    };
+    i.python = {
+      ...i.python,
+      present: true,
+      pyproject: {
+        path: "pyproject.toml",
+        hasBuildSystem: true,
+        tools: [],
+        toolHints: ["pytest", "ruff", "mypy"],
+      },
+    };
+    const out = resolve({ cwd: "/tmp/nope" }, i);
+    expect(out.stacks).toEqual(["python", "node"]);
+    expect(out.primary).toBe("python");
+    expect(out.commands.test).toEqual({ source: "python", argv: ["pytest"] });
+    expect(out.commands.lint).toEqual({ source: "python", argv: ["ruff", "check", "."] });
+  });
+
   test("primaryStack override is honoured when stack is detected", () => {
     const i = emptyInputs();
     i.node = { present: true, dependencies: {}, devDependencies: {}, scripts: {}, raw: {} };
@@ -200,6 +226,25 @@ describe("toolchain.resolve — python defaults", () => {
     };
     const out = resolve({ cwd: "/tmp/nope" }, i);
     expect(out.commands.test).toEqual({ source: "python", argv: ["pytest"] });
+  });
+
+  test("python tool hints from dependencies resolve default commands", () => {
+    const i = emptyInputs();
+    i.python = {
+      ...i.python,
+      present: true,
+      pyproject: {
+        path: "pyproject.toml",
+        hasBuildSystem: false,
+        tools: [],
+        toolHints: ["black", "flake8", "pyright", "pytest"],
+      },
+    };
+    const out = resolve({ cwd: "/tmp/nope" }, i);
+    expect(out.commands.test).toEqual({ source: "python", argv: ["pytest"] });
+    expect(out.commands.lint).toEqual({ source: "python", argv: ["flake8", "."] });
+    expect(out.commands.format).toEqual({ source: "python", argv: ["black", "--check", "."] });
+    expect(out.commands.typecheck).toEqual({ source: "python", argv: ["pyright"] });
   });
 
   test("no build-system → no build command", () => {

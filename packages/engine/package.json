@@ -1,6 +1,6 @@
 {
   "name": "@esbenwiberg/repofit",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Measure how agent-friendly your repo is.",
   "type": "module",
   "engines": {
@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
-    "@esbenwiberg/corpus-default": "^1.2.0",
+    "@esbenwiberg/corpus-default": "^1.2.1",
     "commander": "^14.0.3",
     "ignore": "^7.0.5",
     "openai": "^6.37.0"

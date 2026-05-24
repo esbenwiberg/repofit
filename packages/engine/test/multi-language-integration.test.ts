@@ -77,6 +77,29 @@ pytest = "^8"
     expect(tests).toEqual({ kind: "predicate", value: true });
   });
 
+  test("python repo stays primary when a node sidecar package is present", async () => {
+    const cwd = setup({
+      "package.json": JSON.stringify({ scripts: { dev: "vite" }, devDependencies: { vite: "^7" } }),
+      "pyproject.toml": `[project]
+name = "demo"
+dependencies = ["pytest>=8", "ruff>=0.6", "mypy>=1"]
+
+[build-system]
+requires = ["setuptools"]
+`,
+      "src/demo/__init__.py": "",
+      "tests/test_demo.py": "def test_ok():\n    assert True\n",
+    });
+
+    const ev = await gatherAll({ cwd });
+    expect(ev.node_package.present).toBe(true);
+    expect(ev.toolchain.stacks).toEqual(["python", "node"]);
+    expect(ev.toolchain.primary).toBe("python");
+    expect(ev.toolchain.commands.test?.argv).toEqual(["pytest"]);
+    expect(ev.toolchain.commands.lint?.argv).toEqual(["ruff", "check", "."]);
+    expect(ev.toolchain.commands.typecheck?.argv).toEqual(["mypy", "."]);
+  });
+
   test("go module gets format/lint/tests via built-in toolchain", async () => {
     const cwd = setup({
       "go.mod": "module example.com/demo\n\ngo 1.22\n",

@@ -1,6 +1,6 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
 
-const PROBE_VERSION = "1.0.0";
+const PROBE_VERSION = "2.0.0";
 const MAX_INPUT_CHARS = 6_000;
 
 const RUBRIC = {
@@ -34,31 +34,35 @@ export default defineProbe({
   version: PROBE_VERSION,
   dimensions: [{ id: "feedback", weight: 1 }],
   tier: "reasoned",
-  evidence: ["node_package", "files", "judge"],
+  evidence: [
+    "node_package",
+    "python_project",
+    "dotnet_project",
+    "go_module",
+    "toolchain",
+    "files",
+    "judge",
+  ],
 
   rationale: `
     When an agent makes a change and a script fails, the error message is
     the only signal it has to act on. Tools that emit clear file:line
-    diagnostics (Biome, TSC strict, Vitest) let the agent self-correct;
-    tools run with --silent or homegrown shell scripts that just exit 1
-    leave the agent guessing. This probe asks an LLM to judge the
-    toolchain — which tools are configured, how they're scripted, and
-    whether common feedback loops are present — for diagnostic quality.
+    diagnostics (Biome, TSC strict, Vitest, pytest, mypy, ruff, dotnet, go)
+    let the agent self-correct; tools run with --silent or homegrown shell
+    scripts that just exit 1 leave the agent guessing. This probe asks an LLM
+    to judge the toolchain — which tools are configured, how they're scripted,
+    and whether common feedback loops are present — for diagnostic quality.
   `,
 
   remediation:
     "Use tools that emit file:line:col diagnostics (TSC strict, Biome, ESLint, Vitest, Pytest, rustc). Remove `--silent` / `--quiet` / `2>/dev/null` from scripts. Avoid parallel runners that interleave output during failure investigation. Wire up the full feedback loop: typecheck, lint, test, build — each with a clear script name.",
 
   async detect(ev) {
-    if (!ev.node_package.present) {
-      return { kind: "na", reason: "no package.json" };
-    }
-    const scripts = ev.node_package.scripts;
-    if (Object.keys(scripts).length === 0) {
-      return { kind: "na", reason: "package.json has no scripts" };
+    if (!ev.toolchain.primary && !ev.node_package.present) {
+      return { kind: "na", reason: "no supported stack or package.json scripts" };
     }
 
-    const interestingConfigs = [
+    const nodeConfigs = [
       "tsconfig.json",
       "biome.json",
       "biome.jsonc",
@@ -74,13 +78,56 @@ export default defineProbe({
       ".prettierrc",
       "prettier.config.js",
     ];
-    const presentConfigs = interestingConfigs.filter((p) => ev.files.has(p));
+    const presentNodeConfigs = nodeConfigs.filter((p) => ev.files.has(p));
+    const pythonConfigs = [
+      ev.python_project.pyproject?.path,
+      ...(ev.python_project.configFiles ?? []),
+    ].filter((p): p is string => typeof p === "string" && p.length > 0);
+    const dotnetConfigs = [
+      ...ev.dotnet_project.solutions,
+      ...ev.dotnet_project.projects.map((p) => p.path),
+      ev.dotnet_project.centralPackageManagement?.path,
+    ].filter((p): p is string => typeof p === "string" && p.length > 0);
+    const goConfigs = ev.go_module.modules.map((m) => m.path);
 
-    const lines: string[] = ["# package.json scripts", ""];
+    const lines: string[] = ["# supported stacks", ""];
+    lines.push(`primary: ${ev.toolchain.primary ?? "(none)"}`);
+    lines.push(
+      `detected: ${ev.toolchain.stacks.length === 0 ? "(none)" : ev.toolchain.stacks.join(", ")}`,
+    );
+
+    lines.push("", "# resolved toolchain commands", "");
+    let commandCount = 0;
+    for (const [phase, cmd] of Object.entries(ev.toolchain.commands)) {
+      if (!cmd) continue;
+      commandCount += 1;
+      lines.push(`${phase}: ${cmd.argv.join(" ")} (${cmd.source})`);
+    }
+
+    const scripts = ev.node_package.scripts;
+    const scriptEntries = Object.entries(scripts);
+    lines.push("", "# package.json scripts", "");
+    if (!ev.node_package.present) {
+      lines.push("(no package.json)");
+    } else if (scriptEntries.length === 0) {
+      lines.push("(none detected)");
+    }
     for (const [name, body] of Object.entries(scripts)) {
+      commandCount += 1;
       lines.push(`${name}: ${shortString(body)}`);
     }
+
+    if (commandCount === 0) {
+      return { kind: "na", reason: "no toolchain commands configured" };
+    }
+
     lines.push("", "# tool configs present", "");
+    const presentConfigs = [
+      ...presentNodeConfigs,
+      ...pythonConfigs,
+      ...dotnetConfigs,
+      ...goConfigs,
+    ];
     lines.push(presentConfigs.length === 0 ? "(none detected)" : presentConfigs.join("\n"));
 
     const deps = Object.keys({
@@ -91,7 +138,13 @@ export default defineProbe({
       /^(?:@biomejs|biome|eslint|prettier|typescript|vitest|jest|mocha|tsx|tsc|tap)\b/.test(d),
     );
     lines.push("", "# tool-related dependencies", "");
-    lines.push(toolDeps.length === 0 ? "(none detected)" : toolDeps.sort().join("\n"));
+    lines.push(
+      [
+        ...toolDeps.sort(),
+        ...(ev.python_project.pyproject?.toolHints ?? []),
+        ...(ev.python_project.requirementsToolHints ?? []),
+      ].join("\n") || "(none detected)",
+    );
 
     const input = lines.join("\n").slice(0, MAX_INPUT_CHARS);
 
@@ -115,16 +168,20 @@ export default defineProbe({
 
   fixtures: [
     {
-      name: "no-package-json",
-      evidence: { node_package: { present: false } },
-      expect: { reading: { kind: "na", reason: "no package.json" }, score: null },
+      name: "no-supported-stack",
+      evidence: { node_package: { present: false }, toolchain: { primary: null } },
+      expect: {
+        reading: { kind: "na", reason: "no supported stack or package.json scripts" },
+        score: null,
+      },
     },
     {
-      name: "empty-scripts",
+      name: "empty-toolchain",
       evidence: {
         node_package: { present: true, scripts: {} },
+        toolchain: { stacks: ["node"], primary: "node", commands: {} },
       },
-      expect: { reading: { kind: "na", reason: "package.json has no scripts" }, score: null },
+      expect: { reading: { kind: "na", reason: "no toolchain commands configured" }, score: null },
     },
     {
       name: "strong-toolchain",
@@ -133,6 +190,15 @@ export default defineProbe({
           present: true,
           scripts: { typecheck: "tsc --noEmit", lint: "biome check .", test: "vitest run" },
           devDependencies: { typescript: "^5", "@biomejs/biome": "^2", vitest: "^4" },
+        },
+        toolchain: {
+          stacks: ["node"],
+          primary: "node",
+          commands: {
+            typecheck: { source: "node", argv: ["npm", "run", "typecheck", "--silent"] },
+            lint: { source: "node", argv: ["npm", "run", "lint", "--silent"] },
+            test: { source: "node", argv: ["npm", "test", "--silent"] },
+          },
         },
         files: ["tsconfig.json", "biome.json", "vitest.config.ts"],
         judge: {
@@ -156,6 +222,56 @@ export default defineProbe({
             "feedback-loop-coverage": 80,
           },
           rationale: "TSC, Biome, Vitest — all known for clear diagnostics; full loop covered.",
+          model: "fixture",
+        },
+        score: 80,
+      },
+    },
+    {
+      name: "strong-python-toolchain",
+      evidence: {
+        python_project: {
+          present: true,
+          pyproject: {
+            path: "pyproject.toml",
+            hasBuildSystem: true,
+            tools: ["mypy", "pytest", "ruff"],
+            toolHints: ["mypy", "pytest", "ruff"],
+          },
+          configFiles: ["pytest.ini"],
+        },
+        toolchain: {
+          stacks: ["python"],
+          primary: "python",
+          commands: {
+            build: { source: "python", argv: ["python", "-m", "build"] },
+            typecheck: { source: "python", argv: ["mypy", "."] },
+            lint: { source: "python", argv: ["ruff", "check", "."] },
+            test: { source: "python", argv: ["pytest"] },
+          },
+        },
+        files: ["pyproject.toml", "pytest.ini"],
+        judge: {
+          score: 80,
+          perCriterion: {
+            "tool-clarity": 80,
+            "output-discipline": 80,
+            "feedback-loop-coverage": 80,
+          },
+          rationale: "Pytest, Ruff, mypy, and python -m build provide clear diagnostics.",
+          model: "fixture",
+        },
+      },
+      expect: {
+        reading: {
+          kind: "judge",
+          score: 80,
+          perCriterion: {
+            "tool-clarity": 80,
+            "output-discipline": 80,
+            "feedback-loop-coverage": 80,
+          },
+          rationale: "Pytest, Ruff, mypy, and python -m build provide clear diagnostics.",
           model: "fixture",
         },
         score: 80,

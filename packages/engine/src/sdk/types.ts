@@ -112,6 +112,13 @@ export type PyProjectInfo = {
    * command for the Python stack.
    */
   tools: string[];
+  /**
+   * Known Python tooling package names mentioned anywhere in pyproject.toml.
+   * This intentionally stays small and tool-focused so the default corpus can
+   * infer safe commands from dependency declarations without needing a full TOML
+   * parser in the evidence layer.
+   */
+  toolHints?: string[];
   projectName?: string;
 };
 
@@ -119,6 +126,10 @@ export type PythonProjectEvidence = {
   present: boolean;
   pyproject: PyProjectInfo | null;
   requirementsFiles: string[];
+  /** Known Python tooling package names mentioned in requirements*.txt files. */
+  requirementsToolHints?: string[];
+  /** Common Python tool config files tracked in the repo. */
+  configFiles?: string[];
   hasPoetryLock: boolean;
   hasUvLock: boolean;
   hasPipfileLock: boolean;

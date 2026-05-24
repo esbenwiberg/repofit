@@ -1,6 +1,6 @@
 {
   "name": "@esbenwiberg/corpus-default",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Default probe corpus for repofit.",
   "type": "module",
   "engines": {
@@ -25,6 +25,6 @@
     "@types/node": "^22.19.18"
   },
   "dependencies": {
-    "@esbenwiberg/repofit": "^1.2.0"
+    "@esbenwiberg/repofit": "^1.2.1"
   }
 }
