@@ -479,7 +479,9 @@ corpus that fails on its own repository is not credible.
 
 ---
 
-## 9. Open questions for review
+## 9. Review decisions and open questions
+
+Decided in review (2026-11-02): bands 6/12/24/48 KB with the waiver escape hatch (1); `skill-evals-present` opt-in through probe ids in `include` (2); repofit's own skills move to `.agents/skills` with a `.claude/skills` link in this delivery (4); publishing under the personal scope stays as is for now (5). Item 3 is still open.
 
 1. **Root budget bands.** 6 / 12 / 24 / 48 KB with a waiver escape hatch, or
    softer (8 / 16 / 32 / 64)? The study supports the former; xpm sits in the
