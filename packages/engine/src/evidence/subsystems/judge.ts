@@ -262,7 +262,7 @@ async function callJudgeApi(
   });
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
+  if (toolUse?.type !== "tool_use") {
     throw new Error(
       `judge(api): model did not call record_judgement (stop_reason=${response.stop_reason})`,
     );
@@ -301,7 +301,7 @@ async function callJudgeOpenAI(
   });
 
   const toolCall = response.choices[0]?.message.tool_calls?.[0];
-  if (!toolCall || toolCall.type !== "function") {
+  if (toolCall?.type !== "function") {
     const stopReason = response.choices[0]?.finish_reason ?? "?";
     throw new Error(
       `judge(openai): model did not call record_judgement (finish_reason=${stopReason})`,

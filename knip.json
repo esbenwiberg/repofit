@@ -1,12 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["repofit"],
+  "ignoreBinaries": ["codex"],
   "ignoreExportsUsedInFile": true,
   "ignore": ["examples/**"],
   "workspaces": {
     "packages/engine": {
       "entry": ["test/**/*.test.ts"],
-      "project": ["src/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["@esbenwiberg/corpus-default"]
     },
     "packages/corpus-default": {
       "entry": ["test/**/*.test.ts"],
