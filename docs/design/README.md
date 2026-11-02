@@ -21,7 +21,7 @@ packages depend on the engine SDK, and examples/integrations sit at the edge.
 Do not move stock probes into the engine or make the engine depend on
 `corpus-default`.
 
-Seven documents own one concern each; cross-linked where needed.
+Eight documents own one concern each; cross-linked where needed. Research that grounds a design lives in [`docs/research/`](../research/).
 
 ---
 
@@ -39,6 +39,7 @@ previous ones.
 | 5 | [`config-and-baseline.md`](./config-and-baseline.md) | `repofit.config.json` (the policy gate) and `repofit-baseline.json` (the ratchet snapshot). Corpus pinning, gate modes, dimension/probe overrides, waivers, bootstrap flow, `claude-code` LLM provider. |
 | 6 | [`reports.md`](./reports.md) | Output formats: human (default) / `--json` / `--ci` / `repofit explain`. Visual conventions. Gating-cap rendering. GitHub Actions annotations. |
 | 7 | [`implementation-plan.md`](./implementation-plan.md) | Seven-phase build sequence from skeleton to v1.0.0 release. Tech stack: Node 22, TS strict, vitest, biome, commander, MIT, npm scope `@esbenwiberg`. |
+| 8 | [`corpus-v2-agent-instructions.md`](./corpus-v2-agent-instructions.md) | Default corpus v2 for the `agent.*` family: deterministic-first probes for routing, copies, blind references, undefined commands and committed local settings; additive `agent_config` evidence (symlinks, nested files, skills, harness settings); reasoned rubrics and judge defaults. Grounded in the [agent-instructions field study](../research/agent-instructions-field-study-2026-11.md). |
 
 ---
 
