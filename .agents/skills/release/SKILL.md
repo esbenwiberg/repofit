@@ -1,6 +1,10 @@
+---
+name: release
+description: "Use when preparing a repofit package release: the full validation set, package contents, release notes under docs/release and the release commit. Not for day-to-day commits."
+---
 # Release
 
-Use this skill when preparing a repofit package release.
+**Why this exists:** A publish from a dirty tree, a semver range in a corpus pin, or a release with no note under docs/release.
 
 1. Read the latest release note under `docs/release/`.
 2. Run the full validation set:

@@ -33,8 +33,9 @@ coverage/
 repofit-report.html
 dogfood-report.html
 
-# Local agent state
-.claude/
+# Local agent state (the skills link is tracked; everything else under .claude is local)
+.claude/*
+!.claude/skills
 .mcp.json
 CLAUDE.local.md
 AGENTS.local.md

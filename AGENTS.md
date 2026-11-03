@@ -1,75 +1,75 @@
-# repofit
+# Working on repofit
 
-> **Status:** v1.0.0 — initial release. CLI, default corpus, and dogfood gate
-> are all wired. Release notes: [`docs/release/v1.0.0.md`](docs/release/v1.0.0.md).
+repofit is a CLI that measures how agent-friendly a repository is: a corpus
+of **probes** emits **readings**, each is scored, scores aggregate per
+**dimension** into one fitness number, and gates make it usable in CI. Read
+this file, then the skill or document the task routes to.
 
-A CLI that measures how agent-friendly a repo is. The engine runs a corpus of
-**probes** that emit **readings**, scores each reading, aggregates per
-**dimension**, and produces an overall fitness number. Optional gates (ratchet,
-absolute, advisory) make it usable in CI.
-
-## Architecture
-
-npm workspaces monorepo. **Node 22+**, **TypeScript** (strict, ESM, NodeNext).
-
-```
-packages/
-  engine/          @esbenwiberg/repofit          — CLI + runtime
-    src/
-      cli/         entrypoints
-      sdk/         public API (defineProbe, defineDimension, recipes)
-      evidence/    subsystem registry + gatherers
-      loader/      config + corpus + baseline loaders
-      runner/      tier scheduler, probe execution
-      scorer/      reading → score
-      aggregator/  probe → dim → fitness
-      reporters/   human / json / ci
-  corpus-default/  @esbenwiberg/corpus-default   — bundled probes
-    src/
-      probes/      one file per probe
-      dimensions/  dimension definitions
-docs/
-  design/          design corpus (read this before changing the design)
-```
-
-## Build & Test
+## Start here
 
 ```bash
 npm install
-npm run typecheck      # tsc --noEmit on both packages
+npm run typecheck      # tsc --noEmit on every workspace
 npm run lint           # biome check
-npm run build          # emit dist/ for both packages
-npm test               # vitest run on both packages
+npm run build          # emit dist/ (corpus tests import the engine's dist)
+npm test               # vitest run on every workspace
+node packages/engine/dist/cli/index.js --version
 ```
 
-CLI smoke test once built:
+Node 22+, TypeScript strict ESM (NodeNext), npm workspaces. Build the engine
+before running corpus tests: they import `@esbenwiberg/repofit/sdk` from
+`dist/`.
 
-```bash
-node packages/engine/dist/cli/index.js --version    # → repofit 1.0.0
+## Layout
+
+```
+packages/engine/         @esbenwiberg/repofit          CLI + runtime
+  src/cli/ sdk/ evidence/ loader/ runner/ scorer/ aggregator/ reporters/
+packages/corpus-default/ @esbenwiberg/corpus-default   bundled probes
+  src/probes/ (one file per probe)  src/dimensions/
+docs/design/             design corpus; read before changing architecture
+docs/release/            one note per release (no CHANGELOG.md)
+docs/research/           field studies the corpus is grounded in
+examples/ integrations/ specs/   sample configs, CI integrations, schemas
+.agents/skills/          repository skills; .claude/skills links here
 ```
 
-## Key Conventions
+## Task routes
 
-- **Commits:** `type(scope): subject` (feat, fix, docs, style, refactor, perf,
-  test, build, ci, chore, breaking, security). Enforced by
-  `.githooks/commit-msg`. Wire hooks via `.githooks/install-hooks.sh`.
-- **Pre-commit:** `.githooks/pre-commit` runs a secret scan.
-- **No `--no-verify`.** Fix the underlying issue.
-- **No `CHANGELOG.md` discipline.** Release notes are written per-release
-  under [`docs/release/`](docs/release/).
-- **License:** MIT.
-- **npm scope:** `@esbenwiberg` (packages publish as `@esbenwiberg/repofit`
-  and `@esbenwiberg/corpus-default`).
-
-## Where to find things
-
-| What | Where |
+| Task | Use |
 |---|---|
-| Authoring custom probes (start here for extending the corpus) | [`docs/authoring.md`](docs/authoring.md) |
-| Design corpus (read before changing the architecture) | [`docs/design/`](docs/design/) — start with `README.md` |
-| Release notes | [`docs/release/`](docs/release/) |
-| Implementation plan (phases 0 → 7, now complete) | [`docs/design/implementation-plan.md`](docs/design/implementation-plan.md) |
-| Probe schema | [`docs/design/probe-schema.md`](docs/design/probe-schema.md) |
-| Report formats | [`docs/design/reports.md`](docs/design/reports.md) |
-| Config + baseline | [`docs/design/config-and-baseline.md`](docs/design/config-and-baseline.md) |
-| Dimensions + corpus v1 | [`docs/design/dimensions.md`](docs/design/dimensions.md), [`docs/design/corpus-v1.md`](docs/design/corpus-v1.md) |
+| Add or change a probe | `/new-probe` skill, then [authoring](docs/authoring.md) and [probe schema](docs/design/probe-schema.md) |
+| Commit | `/commit` skill |
+| Run repofit on this repository | `/dogfood-scan` skill |
+| Release a package | `/release` skill, notes under [docs/release/](docs/release/) |
+| Custom corpus or reporter | [authoring-corpus](docs/authoring-corpus.md), [authoring-reporter](docs/authoring-reporter.md) |
+| Change config, baseline or report shape | [config and baseline](docs/design/config-and-baseline.md), [reports](docs/design/reports.md) |
+| Change dimensions or the corpus plan | [dimensions](docs/design/dimensions.md), [corpus v1](docs/design/corpus-v1.md), [corpus v2 agent instructions](docs/design/corpus-v2-agent-instructions.md) |
+| Decide something lasting | an ADR under [docs/adr/](docs/adr/) |
+
+## Always / Ask first / Never
+
+- **Always** run the changed workspace's typecheck and tests plus `npm run
+  lint` before committing; commit as `type(scope): subject` (enforced by
+  `.githooks/commit-msg`, installed by `.githooks/install-hooks.sh`); stage
+  only your own files; write release notes under `docs/release/`.
+- **Ask first** before publishing to npm, accepting a new baseline
+  (`repofit check --accept`), changing a probe's id or scoring bands, or
+  running the reasoned tier against a repository that is not this one.
+- **Never** use `--no-verify`, commit secrets or `.repofit/` cache and report
+  artifacts, make a static probe execute repository commands, run reasoned
+  probes by default, or weaken a fixture to make it pass.
+
+## Conventions
+
+- Probe ids are namespaced by subject (`tests.oracle-quality`,
+  `agent.skills-present`); every probe ships N/A, pass and fail fixtures.
+- Prefer structured evidence subsystems over ad hoc filesystem reads.
+- Corpus pins in `repofit.config.json` are exact versions, never ranges.
+- License MIT; packages publish under the `@esbenwiberg` npm scope.
+
+## What belongs here
+
+This file routes. A rule that applies to one workflow goes in its skill; a
+rule that applies to one package goes in that package's guide; rationale goes
+in a design doc or ADR. Add a line here only when every task needs it.

@@ -1,6 +1,10 @@
+---
+name: commit
+description: "Use when preparing a commit in this repository: focused verification per workspace, lint, staging only your own files, and a Conventional Commit subject. Not for release tagging."
+---
 # Commit
 
-Use this skill when preparing a commit in this repository.
+**Why this exists:** A commit that skipped the workspace's own typecheck and tests, staged someone else's work or a report from /private/tmp, or bypassed the hooks with --no-verify.
 
 1. Check the working tree:
 
@@ -8,9 +12,10 @@ Use this skill when preparing a commit in this repository.
 git status --short
 ```
 
-2. Run focused verification for the files changed. For corpus changes, use:
+2. Run focused verification for the files changed; each command must exit 0. For corpus changes, use:
 
 ```bash
+npm run build -w @esbenwiberg/repofit
 npm --workspace @esbenwiberg/corpus-default run typecheck
 npm --workspace @esbenwiberg/corpus-default test
 ```
