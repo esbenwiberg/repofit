@@ -416,8 +416,15 @@ honest scope for this corpus.
 ### 5.15 Reasoned probes (kept, rubrics rewritten)
 
 All four keep their ids, bump `PROBE_VERSION` (which invalidates the disk
-cache for them) and take the deterministic findings as part of `input` so the
-model is told what has already been checked.
+cache for them) and tell the model what has already been checked. A probe
+cannot read another probe's reading, so "deterministic findings" means two
+things in practice: the rubric `task` names what the deterministic probes
+cover (size, reference and command resolution, adapter shape, skill
+frontmatter and evals) and tells the model not to score it, and the `input`
+opens with an "already checked" header followed by the facts the evidence
+can vouch for (byte sizes, manifest versions and dependency names, counts of
+test files and workflows, each skill's frontmatter description and whether
+`references/` and `evals/` exist).
 
 - **`agent.guidance-quality`** rubric: *instructions, not documentation*
   (anti-pattern 1); *operating boundaries present* (an Always / Ask first /
@@ -431,17 +438,27 @@ model is told what has already been checked.
   counts the evidence provides. The `paths-exist` and `commands-valid`
   criteria are deleted.
 - **`agent.guidance-aligned`** keeps its four criteria; the input now excludes
-  files that `harness-adapters-thin` identified as links or pure pointers, so
-  the model compares real parallels only.
+  files that are links (`instructionFiles[].link`) or pure `@include`
+  pointers (`isPointer`), the same test `harness-adapters-thin` applies, so
+  the model compares real parallels only. Fewer than two files with their
+  own content is a new N/A reason, not a score.
+- **`agent.skills-quality`** now reads `agent_config.skills` (every
+  `SKILL.md` under a skills root, links collapsed by `distinctSkills`) instead
+  of its own path patterns. `.cursor/rules/*.mdc` and `.windsurf/rules` are
+  instruction files and already belong to the guidance probes;
+  `.claude/commands/*.md` and `prompts/agents/*.md` are no longer sampled,
+  since the v2 rubric judges a frontmatter description against a body and
+  those files have neither.
 - **`agent.skills-quality`** rubric: *body teaches what description
   promises*; *procedural over encyclopaedic* (manuals belong in
   `references/`); *failure the skill prevents is stated* (blueprint 9's "if
-  you didn't watch the agent fail without it").
+  you didn't watch the agent fail without it"); *repo-fit* is kept from 1.x.
 
 **Default models.** `DEFAULT_JUDGE_MODEL` moves from `claude-haiku-4-5` to
-`claude-haiku-5-5`. The OpenAI default (`gpt-4o-mini`) is replaced with the
-current small model after a catalogue check during implementation; this doc
-does not assert an id from memory. A changed default shifts reasoned scores
+`claude-haiku-5-5`. The OpenAI default (`gpt-4o-mini`) becomes
+`gpt-5.4-mini`: the newest `-mini` id in the installed `openai` 7.47.0
+`ChatModel` catalogue at implementation time (`gpt-5.5` ships no mini
+variant). This doc asserted no id until that check was made. A changed default shifts reasoned scores
 for existing baselines; the config already lets a repository pin the model,
 and the v2.0.0 release note tells users to re-accept.
 

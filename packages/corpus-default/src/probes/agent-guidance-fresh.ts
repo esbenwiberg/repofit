@@ -1,32 +1,34 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
 import { readGuidanceParts } from "./_shared/guidance-content.js";
 
-const PROBE_VERSION = "1.1.0";
+const PROBE_VERSION = "2.0.0";
 const MAX_GUIDANCE_CHARS = 12_000;
 const MAX_TREE_ENTRIES = 200;
+const MAX_DEPENDENCY_NAMES = 150;
+const TEST_FILE_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py)$/;
 
 const RUBRIC = {
-  task: "Score how FRESH the agent-guidance file is — does it still match the current state of the repo? You will see the guidance content alongside a snapshot of the repo (top-level tree, package.json scripts). Penalise stale claims; reward content that aligns with what's actually there.",
+  task: "Score whether the claims in the root agent-instruction file(s) still match the repository. Deterministic probes have already checked that every referenced path, skill and command exists; do not score those. Score only claims that need reading to test: version numbers and tool names against the manifest, the described architecture against the tree summary, and statements about what exists or does not exist ('no tests', 'single package', 'no CI') against the counts given. A claim the snapshot cannot confirm or deny is neutral, not stale.",
   criteria: [
     {
-      id: "paths-exist",
+      id: "versions-match-manifest",
       description:
-        "Do the file paths and directory names mentioned in the guidance still exist in the tree snapshot? Penalise references to paths that have been removed or renamed.",
-    },
-    {
-      id: "commands-valid",
-      description:
-        "Do the build/test/run commands referenced in the guidance match the actual scripts in package.json (or the actual tooling visible in the tree)? Penalise commands that no longer resolve.",
+        "Do runtime, language and tool versions and names stated in the guidance ('Node 18', 'Python 3.9', 'we use Jest') agree with the manifest summary (engines, dependency names, versions)? A contradiction scores low; no version claims at all is 100.",
     },
     {
       id: "architecture-matches",
       description:
-        "Does the architectural description (modules, packages, layering) match the current directory layout? Penalise stale claims about packages or modules that no longer exist, or omissions of major new ones.",
+        "Does the described structure (packages, modules, layering, where major code lives) match the top-level tree summary? Penalise packages or modules described but absent, and major directories present that the description would have to mention to be true.",
+    },
+    {
+      id: "existence-claims-match-counts",
+      description:
+        "Do statements of what exists or does not ('no tests', 'no CI', 'single package', 'the monorepo has three apps') agree with the counts given (test files, workflows, packages)? 'No tests' next to a non-zero test-file count scores 0.",
     },
     {
       id: "no-stale-claims",
       description:
-        "Are there claims about features, status, deadlines, or in-progress work that look outdated relative to the current state? A '🚧 in progress' note for something that's clearly shipped, or a 'coming soon' for something that's been there for a year, costs points.",
+        "Are there status claims that look outdated: 'in progress' or 'coming soon' markers, 'temporary' workarounds, migrations 'underway', deadlines? Each one that the snapshot suggests has long since resolved costs points; none is 100.",
     },
   ],
 } as const;
@@ -42,17 +44,20 @@ export default defineProbe({
   evidence: ["agent_config", "files", "node_package", "size_stats", "judge"],
 
   rationale: `
-    A CLAUDE.md or AGENTS.md that's well-written but out-of-date is worse than
-    no guidance at all — the agent will confidently follow stale directions
-    into dead ends. This probe asks an LLM to compare guidance content
-    against a snapshot of the actual repo (top-level tree, package.json
-    scripts) and flag references that no longer resolve: paths that have
-    moved, commands that don't exist, architecture descriptions that don't
-    match the current layout, in-progress markers for shipped features.
+    A well-written root that is out of date sends every agent confidently
+    into a dead end. Whether a path or command still exists is checked
+    deterministically (agent.references-resolve, agent.commands-resolve);
+    this probe covers the claims those cannot test. It hands a model the
+    guidance beside a snapshot the evidence can vouch for (top-level tree,
+    manifest name, version, engines and dependency names, counts of test
+    files and workflows) and asks only about version claims, the described
+    architecture, existence claims and status markers. The field study
+    found "no tests found" in roots of repositories with hundreds of test
+    files, and runtime versions two majors behind the manifest.
   `,
 
   remediation:
-    "Sweep your CLAUDE.md / AGENTS.md against the current repo: every path mentioned should exist, every command should resolve to a real script, every architecture claim should match the layout, every status note ('in progress', 'coming soon') should still be true. Re-run this probe after the sweep — a stale guidance file silently misdirects every agent that lands.",
+    "Sweep the root against the current repository: every version and tool name should match the manifest, the architecture description should match the tree, every 'no X' or 'single Y' claim should still be true, and every 'in progress' or 'temporary' marker should either be current or deleted. Then re-run this probe.",
 
   async detect(ev) {
     const guidance = ev.agent_config.guidance;
@@ -68,22 +73,66 @@ export default defineProbe({
     }
 
     const topLevel = new Set<string>();
+    let testFiles = 0;
+    let workflows = 0;
+    let manifests = 0;
     for (const f of ev.size_stats.files) {
       const top = f.path.split("/")[0];
       if (top) topLevel.add(top);
+      if (TEST_FILE_RE.test(f.path)) testFiles += 1;
+      if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(f.path)) workflows += 1;
+      if (/(^|\/)package\.json$/.test(f.path) && !f.path.includes("node_modules")) manifests += 1;
     }
     const treeEntries = Array.from(topLevel).sort().slice(0, MAX_TREE_ENTRIES);
-    const treeSection = `## Top-level entries\n${treeEntries.join("\n")}`;
+    const sections = [
+      `## Top-level entries\n${treeEntries.join("\n")}`,
+      `## Counts\n- tracked files: ${ev.size_stats.totalFiles}\n- test files (by path pattern): ${testFiles}\n- GitHub workflows: ${workflows}\n- package.json manifests: ${manifests}`,
+    ];
 
-    let scriptsSection = "";
     if (ev.node_package.present) {
-      const names = Object.keys(ev.node_package.scripts).sort();
-      scriptsSection = `\n\n## package.json scripts\n${names.join("\n")}`;
+      const raw = ev.node_package.raw ?? {};
+      const scalar = (key: string) => {
+        const v = raw[key];
+        return typeof v === "string" ? v : undefined;
+      };
+      const engines =
+        raw.engines && typeof raw.engines === "object" ? JSON.stringify(raw.engines) : undefined;
+      const names = Object.keys({
+        ...ev.node_package.dependencies,
+        ...ev.node_package.devDependencies,
+      })
+        .sort()
+        .slice(0, MAX_DEPENDENCY_NAMES);
+      const scripts = Object.keys(ev.node_package.scripts).sort();
+      sections.push(
+        [
+          "## package.json",
+          `- name: ${scalar("name") ?? "(none)"}`,
+          `- version: ${scalar("version") ?? "(none)"}`,
+          `- engines: ${engines ?? "(none)"}`,
+          `- scripts: ${scripts.join(", ") || "(none)"}`,
+          `- dependencies: ${names.join(", ") || "(none)"}`,
+        ].join("\n"),
+      );
     }
 
-    const repoSnapshot = `${treeSection}${scriptsSection}`;
-    const guidanceCombined = parts.join("\n\n---\n\n");
-    const input = `# REPO SNAPSHOT\n\n${repoSnapshot}\n\n---\n\n# AGENT GUIDANCE\n\n${guidanceCombined}`;
+    const input = [
+      "# ALREADY CHECKED BY DETERMINISTIC PROBES (do not score)",
+      "",
+      "That every referenced path, skill and command exists.",
+      "",
+      "---",
+      "",
+      "# REPO SNAPSHOT",
+      "",
+      sections.join("\n\n"),
+      "",
+      "---",
+      "",
+      "# AGENT GUIDANCE",
+      "",
+      parts.join("\n\n---\n\n"),
+    ].join("\n");
 
     const result = await ev.judge.score({
       probeId: "agent.guidance-fresh",
@@ -119,27 +168,33 @@ export default defineProbe({
         agent_config: { guidance: [{ path: "CLAUDE.md", bytes: 500, lines: 20 }] },
         files: {
           "CLAUDE.md":
-            "# Project\n\nMain code lives in `src/`. Run `npm test` and `npm run build`.",
+            "# Project\n\nSingle package on Node 22. Main code lives in `src/`; tests are vitest under `test/`.",
         },
-        node_package: { present: true, scripts: { test: "vitest", build: "tsc" } },
+        node_package: {
+          present: true,
+          scripts: { test: "vitest", build: "tsc" },
+          devDependencies: { vitest: "^3.0.0" },
+          raw: { name: "proj", version: "1.0.0", engines: { node: ">=22" } },
+        },
         size_stats: {
           source: "git-ls-files",
           totalBytes: 500,
-          totalFiles: 2,
+          totalFiles: 3,
           files: [
             { path: "src/index.ts", bytes: 300, lines: 10, depth: 1 },
-            { path: "CLAUDE.md", bytes: 200, lines: 10, depth: 0 },
+            { path: "test/index.test.ts", bytes: 100, lines: 5, depth: 1 },
+            { path: "CLAUDE.md", bytes: 100, lines: 10, depth: 0 },
           ],
         },
         judge: {
           score: 90,
           perCriterion: {
-            "paths-exist": 100,
-            "commands-valid": 100,
+            "versions-match-manifest": 100,
             "architecture-matches": 80,
+            "existence-claims-match-counts": 100,
             "no-stale-claims": 80,
           },
-          rationale: "All references match repo state.",
+          rationale: "Node 22 and vitest match the manifest; counts agree.",
           model: "fixture",
         },
       },
@@ -148,12 +203,12 @@ export default defineProbe({
           kind: "judge",
           score: 90,
           perCriterion: {
-            "paths-exist": 100,
-            "commands-valid": 100,
+            "versions-match-manifest": 100,
             "architecture-matches": 80,
+            "existence-claims-match-counts": 100,
             "no-stale-claims": 80,
           },
-          rationale: "All references match repo state.",
+          rationale: "Node 22 and vitest match the manifest; counts agree.",
           model: "fixture",
         },
         score: 90,
@@ -165,46 +220,52 @@ export default defineProbe({
         agent_config: { guidance: [{ path: "CLAUDE.md", bytes: 500, lines: 20 }] },
         files: {
           "CLAUDE.md":
-            "# Project\n\nCode lives in `lib/`. Run `npm run dev` for the dev server. The `experimental/` folder is 🚧 in progress.",
+            "# Project\n\nNode 16 with Jest. No tests found yet. Code lives in `lib/`. The `experimental/` folder is 🚧 in progress.",
         },
-        node_package: { present: true, scripts: { test: "vitest" } },
+        node_package: {
+          present: true,
+          scripts: { test: "vitest" },
+          devDependencies: { vitest: "^3.0.0" },
+          raw: { name: "proj", version: "4.2.0", engines: { node: ">=22" } },
+        },
         size_stats: {
           source: "git-ls-files",
           totalBytes: 500,
-          totalFiles: 2,
+          totalFiles: 3,
           files: [
             { path: "src/index.ts", bytes: 300, lines: 10, depth: 1 },
-            { path: "CLAUDE.md", bytes: 200, lines: 10, depth: 0 },
+            { path: "src/index.test.ts", bytes: 100, lines: 5, depth: 1 },
+            { path: "CLAUDE.md", bytes: 100, lines: 10, depth: 0 },
           ],
         },
         judge: {
-          score: 25,
+          score: 20,
           perCriterion: {
-            "paths-exist": 20,
-            "commands-valid": 20,
-            "architecture-matches": 30,
-            "no-stale-claims": 30,
+            "versions-match-manifest": 0,
+            "architecture-matches": 20,
+            "existence-claims-match-counts": 0,
+            "no-stale-claims": 50,
           },
           rationale:
-            "References lib/ and experimental/ which don't exist; npm run dev not a script.",
+            "Claims Node 16 and Jest against Node 22 and vitest; says no tests but one exists.",
           model: "fixture",
         },
       },
       expect: {
         reading: {
           kind: "judge",
-          score: 25,
+          score: 20,
           perCriterion: {
-            "paths-exist": 20,
-            "commands-valid": 20,
-            "architecture-matches": 30,
-            "no-stale-claims": 30,
+            "versions-match-manifest": 0,
+            "architecture-matches": 20,
+            "existence-claims-match-counts": 0,
+            "no-stale-claims": 50,
           },
           rationale:
-            "References lib/ and experimental/ which don't exist; npm run dev not a script.",
+            "Claims Node 16 and Jest against Node 22 and vitest; says no tests but one exists.",
           model: "fixture",
         },
-        score: 25,
+        score: 20,
       },
     },
   ],

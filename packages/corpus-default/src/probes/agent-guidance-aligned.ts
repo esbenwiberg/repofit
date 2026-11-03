@@ -1,11 +1,12 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
+import { isPointer } from "./_shared/agent-tree.js";
 
-const PROBE_VERSION = "1.0.0";
+const PROBE_VERSION = "1.1.0";
 const MAX_CHARS_PER_FILE = 5_000;
 const MAX_INPUT_CHARS = 20_000;
 
 const RUBRIC = {
-  task: "Judge whether multiple agent guidance files in this repository are aligned rather than giving different agents contradictory instructions.",
+  task: "Judge whether the root agent guidance files of this repository give different agents the same instructions. Only real parallels are shown: files that are symlinks to another guidance file, or that contain nothing but an @include pointer, were excluded because a deterministic probe already verified them. Compare the files shown on what they tell an agent to do; wording may differ, instructions must not.",
   criteria: [
     {
       id: "commands-align",
@@ -40,14 +41,18 @@ export default defineProbe({
   evidence: ["agent_config", "files", "judge"],
 
   rationale: `
-    Many repos now carry several guidance files: CLAUDE.md, AGENTS.md,
-    .cursorrules, .aider.conf.yml, and GitHub Copilot instructions. That is
-    useful only if they agree on commands, architecture, conventions, and
-    safety rules. Otherwise different agents receive different realities.
+    Many repos carry several root guidance files: CLAUDE.md, AGENTS.md,
+    .cursorrules, Copilot instructions. Where those are symlinks or
+    one-line pointers to a canonical file, agent.harness-adapters-thin
+    already proves they cannot drift, so this probe leaves them out and
+    compares only real parallels: files with their own content. Two such
+    files are useful only if they agree on commands, architecture,
+    conventions and safety rules; otherwise different agents receive
+    different realities.
   `,
 
   remediation:
-    "Pick one source of truth for shared repo guidance, then make tool-specific files point to it or add only tool-specific deltas. Keep commands, architecture, commit rules, testing expectations, and safety constraints aligned across CLAUDE.md, AGENTS.md, Copilot instructions, Cursor rules, and Aider config.",
+    "Pick one source of truth for shared repo guidance, then make tool-specific files a symlink to it or a one-line `@AGENTS.md` pointer. Where a harness really needs its own content, keep commands, architecture, commit rules, testing expectations and safety constraints identical to the canonical file.",
 
   async detect(ev) {
     const guidance = ev.agent_config.guidance;
@@ -55,11 +60,15 @@ export default defineProbe({
       return { kind: "na", reason: "fewer than two agent guidance files found" };
     }
 
+    const linked = new Set(
+      ev.agent_config.instructionFiles.filter((f) => f.link !== null).map((f) => f.path),
+    );
     const sampled: { path: string; text: string }[] = [];
     let totalChars = 0;
-    for (const g of guidance.sort((a, b) => a.path.localeCompare(b.path))) {
+    for (const g of [...guidance].sort((a, b) => a.path.localeCompare(b.path))) {
+      if (linked.has(g.path)) continue;
       const text = await ev.files.readText(g.path);
-      if (!text) continue;
+      if (!text || isPointer(text)) continue;
       const slice = text.slice(0, MAX_CHARS_PER_FILE);
       sampled.push({ path: g.path, text: slice });
       totalChars += slice.length;
@@ -67,7 +76,7 @@ export default defineProbe({
     }
 
     if (sampled.length < 2) {
-      return { kind: "na", reason: "agent guidance files declared but unreadable" };
+      return { kind: "na", reason: "fewer than two guidance files with their own content" };
     }
 
     const input = sampled.map((s) => `# ${s.path}\n\n${s.text}`).join("\n\n---\n\n");
@@ -95,6 +104,56 @@ export default defineProbe({
       evidence: { agent_config: { guidance: [{ path: "CLAUDE.md", bytes: 100, lines: 5 }] } },
       expect: {
         reading: { kind: "na", reason: "fewer than two agent guidance files found" },
+        score: null,
+      },
+    },
+    {
+      name: "pointer-and-link-adapters-are-not-parallels",
+      evidence: {
+        agent_config: {
+          guidance: [
+            { path: "AGENTS.md", bytes: 200, lines: 10 },
+            { path: "CLAUDE.md", bytes: 10, lines: 1 },
+            { path: "GEMINI.md", bytes: 200, lines: 10 },
+          ],
+          instructionFiles: [
+            {
+              path: "AGENTS.md",
+              depth: 0,
+              bytes: 200,
+              lines: 10,
+              sha256: "a",
+              link: null,
+              includes: [],
+            },
+            {
+              path: "CLAUDE.md",
+              depth: 0,
+              bytes: 10,
+              lines: 1,
+              sha256: "b",
+              link: null,
+              includes: ["AGENTS.md"],
+            },
+            {
+              path: "GEMINI.md",
+              depth: 0,
+              bytes: 200,
+              lines: 10,
+              sha256: "a",
+              link: { target: "AGENTS.md", targetExists: true, insideRepo: true },
+              includes: [],
+            },
+          ],
+        },
+        files: {
+          "AGENTS.md": "Run npm test. Commit as feat(scope): subject.\n",
+          "CLAUDE.md": "@AGENTS.md\n",
+          "GEMINI.md": "Run npm test. Commit as feat(scope): subject.\n",
+        },
+      },
+      expect: {
+        reading: { kind: "na", reason: "fewer than two guidance files with their own content" },
         score: null,
       },
     },
