@@ -16,7 +16,6 @@ import type {
   GithubApiEvidence,
   GitignoreEvidence,
   GoModuleEvidence,
-  GuidanceFile,
   JudgeBand,
   JudgeEvidence,
   JudgeRequest,
@@ -105,10 +104,17 @@ function hydrateFiles(raw: unknown): FilesEvidence {
 }
 
 function hydrateAgentConfig(raw: unknown): AgentConfigEvidence {
-  const obj = (raw ?? {}) as { guidance?: GuidanceFile[] };
+  const obj = (raw ?? {}) as Partial<Omit<AgentConfigEvidence, "has">>;
   const guidance = obj.guidance ?? [];
   const present = new Set(guidance.map((g) => g.path));
-  return { guidance, has: (p) => present.has(p) };
+  return {
+    guidance,
+    has: (p) => present.has(p),
+    instructionFiles: obj.instructionFiles ?? [],
+    skills: obj.skills ?? [],
+    harnessConfig: obj.harnessConfig ?? [],
+    source: obj.source ?? "git-ls-files",
+  };
 }
 
 function hydrateNodePackage(raw: unknown): NodePackageEvidence {
