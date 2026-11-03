@@ -57,17 +57,15 @@ Coupling probes to dimensions via prefix would force renames when we move a prob
 | id | tier | evidence | reading | direction |
 |---|---|---|---|---|
 | `agent.guidance-present` | static | `agent_config` | predicate | positive |
-| `agent.guidance-substance` | static | `agent_config` | magnitude (lines) | banded |
+| `agent.*` family | static / derived / reasoned | `agent_config`, `files`, `size_stats`, `judge` | see [corpus v2](./corpus-v2-agent-instructions.md) | mixed |
 | `docs.readme-present` | static | `files` | predicate | positive |
 | `docs.readme-substance` | static | `files` | count (sections) | banded |
 | `docs.contributing-present` | static | `files` | predicate | positive |
 | `docs.adr-presence` | static | `adr_index` | count | banded |
 | `docs.module-readme-coverage` | derived | `files`, `repo_meta` | magnitude (%) | banded |
-| `agent.guidance-fresh` *(v1.x)* | reasoned | `agent_config`, `files`, `size_stats` | inventory | severity |
 
 **Notes:**
-- `agent.guidance-present` checks any of CLAUDE.md / AGENTS.md / .cursorrules / .aider.conf.yml. A repo with none of these is invisible to agent priors.
-- `agent.guidance-substance` uses a non-monotonic banding: too short = thin, too long = bloat. Sweet spot ~150–500 lines.
+- The `agent.*` family (guidance presence, root budget, routing, nested guidance, adapters, skills, references, commands, portability, local settings and the reasoned rubrics) is specified in [corpus v2](./corpus-v2-agent-instructions.md) since corpus-default 2.0.0. `agent.guidance-substance` and `agent.guidance-nested` are retired there.
 - `docs.readme-substance` counts presence of canonical sections (Install/Setup/Usage/Build/Test/Architecture/Contributing).
 - `docs.module-readme-coverage` only counts top-level source dirs (excludes `node_modules`, `dist`, `bin`, `obj`, `.git`).
 - `agent.guidance-fresh` is the killer reasoned probe — detects when CLAUDE.md claims still match reality. Reserved for v1.x.
@@ -222,7 +220,7 @@ Dimensions can re-weight these in their recipes; projects can re-weight again.
 
 - **Always-on, default config**: 26 probes (the v1 base)
 - **Add `--include executed`**: +10 probes (3 Feedback, 1 Consistency, 4 Latency, 2 Safety external)
-- **Add `--include reasoned` (v1.x)**: +1 probe (`agent.guidance-fresh`)
+- **Add `--include reasoned`**: the reasoned `agent.*` and docs/arch rubrics (see [corpus v2](./corpus-v2-agent-instructions.md) for the agent ones)
 
 A first-time `repofit check` on a repo runs 26 probes, all static or derived. Should be under a second on a typical repo (evidence built once, probes share it).
 
@@ -231,7 +229,7 @@ A first-time `repofit check` on a repo runs 26 probes, all static or derived. Sh
 ## 11. Deferred from v1 corpus
 
 - `size.boilerplate-ratio` — heuristic is fragile; defer to v1.x.
-- `agent.guidance-fresh` and other reasoned probes — schema reserved, implementation v1.x.
+- Reasoned probes — shipped in v1.x; the agent rubrics were rewritten in corpus-default 2.0.0 ([corpus v2](./corpus-v2-agent-instructions.md)).
 - Per-language size probes beyond TS and .NET — ship in language-specific corpus packages.
 - `git.branch-protection` API plumbing — schema slot reserved, may need provider-specific impl.
 - `tests.flakiness` — would need historical CI data. Out of scope.

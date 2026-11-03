@@ -9,6 +9,7 @@ import {
   DEFAULT_CONFIG,
   loadProjectConfig,
   type ProjectConfig,
+  splitInclude,
 } from "../loader/config.js";
 import { type LoadedCorpus, loadCorpora } from "../loader/corpus.js";
 import { effectiveDimensions } from "../loader/effective-dimensions.js";
@@ -39,7 +40,7 @@ export type CheckOptions = {
   html?: string | undefined;
   sarif?: string | undefined;
   comment?: string | undefined;
-  include?: Tier[];
+  include?: string[];
   noCache?: boolean;
   judgeTransport?: "api" | "cli" | "openai" | "codex";
   /**
@@ -73,6 +74,7 @@ export async function check(opts: CheckOptions): Promise<number> {
   });
   const corpus = await loadCorpora({ packages: config.corpus?.map((c) => c.package) });
   reportCorpusOverrides(corpus, opts.output);
+  reportUnknownProbeReferences(corpus, config, opts, opts.output);
 
   const probes = opts.probe ? corpus.probes.filter((p) => p.id === opts.probe) : corpus.probes;
   if (opts.probe && probes.length === 0) {
@@ -80,10 +82,11 @@ export async function check(opts: CheckOptions): Promise<number> {
     return 2;
   }
 
-  const includeTiers = resolveIncludeTiers(opts.include, config);
+  const { includeTiers, includeProbes } = resolveInclude(opts.include, config, opts.probe);
   const summary = await runProbesDetailed(probes, evidence, {
     waivers: config.waivers,
     includeTiers,
+    includeProbes,
   });
   const results = summary.results;
 
@@ -206,13 +209,61 @@ export async function check(opts: CheckOptions): Promise<number> {
   return verdict.pass ? 0 : 1;
 }
 
-function resolveIncludeTiers(
-  cliInclude: Tier[] | undefined,
+/**
+ * `--include` on the command line replaces `gate.include`; both name opt-in
+ * tiers and opt-in probe ids. A probe selected with `--probe` runs even when
+ * it is opt-in: naming it is the opt-in.
+ */
+function resolveInclude(
+  cliInclude: string[] | undefined,
   config: ProjectConfig,
-): ReadonlySet<Tier> {
-  const extra = cliInclude ?? config.gate.include ?? [];
-  if (extra.length === 0) return DEFAULT_TIERS;
-  return new Set<Tier>([...DEFAULT_TIERS, ...extra]);
+  selectedProbe: string | undefined,
+): { includeTiers: ReadonlySet<Tier>; includeProbes: ReadonlySet<string> } {
+  const extra = cliInclude && cliInclude.length > 0 ? cliInclude : (config.gate.include ?? []);
+  const { tiers, probeIds } = splitInclude(extra);
+  if (selectedProbe) probeIds.add(selectedProbe);
+  return {
+    includeTiers: tiers.size === 0 ? DEFAULT_TIERS : new Set<Tier>([...DEFAULT_TIERS, ...tiers]),
+    includeProbes: probeIds,
+  };
+}
+
+/**
+ * A config that names a probe the corpus no longer ships is silently inert:
+ * a disabled or waived id matches nothing, and an opt-in id includes nothing.
+ * Say so, naming the replacement when the corpus records one.
+ */
+function reportUnknownProbeReferences(
+  corpus: LoadedCorpus,
+  config: ProjectConfig,
+  opts: Pick<CheckOptions, "include">,
+  output: OutputMode | undefined,
+): void {
+  if (output === "json") return;
+  const known = new Set(corpus.probes.map((p) => p.id));
+  const referenced = new Map<string, string>();
+  for (const [dimId, dim] of Object.entries(config.dimensions ?? {})) {
+    for (const id of Object.keys(dim.probes ?? {}))
+      referenced.set(id, `dimensions.${dimId}.probes`);
+  }
+  for (const id of Object.keys(config.probes ?? {})) referenced.set(id, "probes");
+  for (const w of config.waivers ?? []) referenced.set(w.probeId, "waivers");
+  const include =
+    opts.include && opts.include.length > 0 ? opts.include : (config.gate.include ?? []);
+  for (const id of splitInclude(include).probeIds) {
+    referenced.set(id, opts.include && opts.include.length > 0 ? "--include" : "gate.include");
+  }
+  for (const [id, where] of referenced) {
+    if (known.has(id)) continue;
+    const replacement = corpus.retired[id];
+    const hint =
+      replacement !== undefined
+        ? replacement === null
+          ? `removed from ${corpus.name}@${corpus.version} with no replacement`
+          : `removed from ${corpus.name}@${corpus.version}; its replacement is '${replacement}'`
+        : `not in ${corpus.name}@${corpus.version}`;
+    console.error(`warning: ${where} names probe '${id}', which is ${hint}`);
+  }
 }
 
 function fmt(n: number | null): string {

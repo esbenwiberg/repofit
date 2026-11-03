@@ -66,3 +66,37 @@ export async function listTrackedFiles(cwd: string): Promise<string[] | null> {
     return null;
   }
 }
+
+export type TrackedEntry = {
+  path: string;
+  /** Index mode: `100644`, `100755`, `120000` (symlink) or `160000` (submodule). */
+  mode: string;
+};
+
+/**
+ * `git ls-files -s` entries with their index mode, so a symlink is recognised
+ * from the index even on a checkout with `core.symlinks=false` where the
+ * working tree holds it as a text file. `null` when git is unavailable or the
+ * directory is not a repository.
+ */
+export async function listTrackedEntries(cwd: string): Promise<TrackedEntry[] | null> {
+  try {
+    const { stdout } = await exec("git", ["ls-files", "-s", "-z"], {
+      cwd,
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const entries: TrackedEntry[] = [];
+    for (const record of stdout.split("\0")) {
+      if (record.length === 0) continue;
+      const tab = record.indexOf("\t");
+      if (tab < 0) continue;
+      const mode = record.slice(0, record.indexOf(" "));
+      const path = record.slice(tab + 1);
+      if (mode.length === 0 || path.length === 0) continue;
+      entries.push({ path, mode });
+    }
+    return entries;
+  } catch {
+    return null;
+  }
+}

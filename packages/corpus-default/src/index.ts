@@ -7,18 +7,28 @@ import latencyDimension from "./dimensions/latency.js";
 import safetyDimension from "./dimensions/safety.js";
 import agentGuidancePresentFixer from "./fixers/agent-guidance-present.js";
 import agentGuidancePresentLlmFixer from "./fixers/agent-guidance-present-llm.js";
+import agentLocalSettingsNotCommittedFixer from "./fixers/agent-local-settings-not-committed.js";
 import docsReadmePresentFixer from "./fixers/docs-readme-present.js";
 import docsReadmePresentLlmFixer from "./fixers/docs-readme-present-llm.js";
 import editorconfigPresentFixer from "./fixers/editorconfig-present.js";
 import gitignoreComprehensiveFixer from "./fixers/gitignore-comprehensive.js";
+import agentCommandsResolve from "./probes/agent-commands-resolve.js";
 import agentGuidanceAligned from "./probes/agent-guidance-aligned.js";
 import agentGuidanceFresh from "./probes/agent-guidance-fresh.js";
-import agentGuidanceNested from "./probes/agent-guidance-nested.js";
 import agentGuidancePresent from "./probes/agent-guidance-present.js";
 import agentGuidanceQuality from "./probes/agent-guidance-quality.js";
-import agentGuidanceSubstance from "./probes/agent-guidance-substance.js";
+import agentHarnessAdaptersThin from "./probes/agent-harness-adapters-thin.js";
+import agentLocalSettingsNotCommitted from "./probes/agent-local-settings-not-committed.js";
+import agentNestedGuidanceLean from "./probes/agent-nested-guidance-lean.js";
+import agentReferencesResolve from "./probes/agent-references-resolve.js";
+import agentRootBudget from "./probes/agent-root-budget.js";
+import agentRootRoutes from "./probes/agent-root-routes.js";
+import agentSharedFilesPortable from "./probes/agent-shared-files-portable.js";
+import agentSkillDescriptionsTrigger from "./probes/agent-skill-descriptions-trigger.js";
+import agentSkillEvalsPresent from "./probes/agent-skill-evals-present.js";
 import agentSkillsPresent from "./probes/agent-skills-present.js";
 import agentSkillsQuality from "./probes/agent-skills-quality.js";
+import agentSkillsSingleSource from "./probes/agent-skills-single-source.js";
 import archBoundariesClear from "./probes/arch-boundaries-clear.js";
 import archCouplingHotspots from "./probes/arch-coupling-hotspots.js";
 import archDocPresent from "./probes/arch-doc-present.js";
@@ -76,6 +86,7 @@ import testsClean from "./probes/tests-clean.js";
 import testsCoverPublicSurface from "./probes/tests-cover-public-surface.js";
 import testsDeterministic from "./probes/tests-deterministic.js";
 import testsFailureActionability from "./probes/tests-failure-actionability.js";
+import testsMutationConfigured from "./probes/tests-mutation-configured.js";
 import testsOracleQuality from "./probes/tests-oracle-quality.js";
 import testsRunnerConfigured from "./probes/tests-runner-configured.js";
 import typesClean from "./probes/types-clean.js";
@@ -90,14 +101,23 @@ export const meta = {
 };
 
 export const probes = [
+  agentCommandsResolve,
   agentGuidanceAligned,
   agentGuidanceFresh,
-  agentGuidanceNested,
   agentGuidancePresent,
   agentGuidanceQuality,
-  agentGuidanceSubstance,
+  agentHarnessAdaptersThin,
+  agentLocalSettingsNotCommitted,
+  agentNestedGuidanceLean,
+  agentReferencesResolve,
+  agentRootBudget,
+  agentRootRoutes,
+  agentSharedFilesPortable,
+  agentSkillDescriptionsTrigger,
+  agentSkillEvalsPresent,
   agentSkillsPresent,
   agentSkillsQuality,
+  agentSkillsSingleSource,
   archBoundariesClear,
   archCouplingHotspots,
   archDocPresent,
@@ -155,6 +175,7 @@ export const probes = [
   testsCoverPublicSurface,
   testsDeterministic,
   testsFailureActionability,
+  testsMutationConfigured,
   testsOracleQuality,
   testsRunnerConfigured,
   typesClean,
@@ -174,8 +195,19 @@ export const dimensions = [
 export const fixers = [
   agentGuidancePresentFixer,
   agentGuidancePresentLlmFixer,
+  agentLocalSettingsNotCommittedFixer,
   docsReadmePresentFixer,
   docsReadmePresentLlmFixer,
   editorconfigPresentFixer,
   gitignoreComprehensiveFixer,
 ];
+
+/**
+ * Probe ids earlier corpus versions shipped, with the probe that now
+ * covers the same ground (`null` when nothing does). The engine warns
+ * when a config still references one.
+ */
+export const retired: Record<string, string | null> = {
+  "agent.guidance-substance": "agent.root-budget",
+  "agent.guidance-nested": "agent.nested-guidance-lean",
+};

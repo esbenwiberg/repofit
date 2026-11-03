@@ -3,7 +3,8 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { VERSION } from "../index.js";
-import { TIERS, type Tier } from "../sdk/types.js";
+import { isIncludeToken } from "../loader/config.js";
+import { TIERS } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
 import { apply } from "./apply.js";
 import { check, type OutputMode } from "./check.js";
@@ -11,19 +12,19 @@ import { explain } from "./explain.js";
 import { probeNew } from "./probe-new.js";
 import { waiveAdd, waiveLs, waiveRm } from "./waive.js";
 
-const VALID_TIERS = new Set<Tier>(TIERS);
-
-function parseInclude(value: string, previous: Tier[] = []): Tier[] {
+function parseInclude(value: string, previous: string[] = []): string[] {
   const tokens = value
     .split(",")
     .map((t) => t.trim())
     .filter((t) => t.length > 0);
   for (const t of tokens) {
-    if (!VALID_TIERS.has(t as Tier)) {
-      throw new Error(`--include: unknown tier '${t}' (valid: ${TIERS.join(", ")})`);
+    if (!isIncludeToken(t)) {
+      throw new Error(
+        `--include: '${t}' is neither a tier (${TIERS.join(", ")}) nor a probe id such as agent.skill-evals-present`,
+      );
     }
   }
-  return [...previous, ...(tokens as Tier[])];
+  return [...previous, ...tokens];
 }
 
 const ROOT_HELP = `
@@ -64,10 +65,10 @@ export function createProgram(): Command {
       "Write a markdown PR-comment body to this path (verdict + score + dimension table + top regressions).",
     )
     .option(
-      "--include <tier>",
-      "Opt-in tier (executed, reasoned). Comma-separate or repeat to add multiple.",
+      "--include <tier-or-probe>",
+      "Opt-in tier (executed, reasoned) or opt-in probe id. Comma-separate or repeat to add multiple.",
       parseInclude,
-      [] as Tier[],
+      [] as string[],
     )
     .option("--no-cache", "Skip the persistent judge cache for reasoned-tier probes.")
     .option(
@@ -93,7 +94,7 @@ export function createProgram(): Command {
         html?: string;
         sarif?: string;
         comment?: string;
-        include: Tier[];
+        include: string[];
         cache: boolean;
         judgeTransport?: string;
         reporter: string[];

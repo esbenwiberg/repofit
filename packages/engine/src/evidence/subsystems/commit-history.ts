@@ -12,6 +12,9 @@ export const commitHistorySubsystem = {
         "git",
         [
           "log",
+          // Merge subjects are generated (the GitHub button, a PR's synthetic
+          // merge ref), not authored; probes read what people wrote.
+          "--no-merges",
           `-n`,
           String(DEFAULT_COMMIT_LIMIT),
           `--pretty=format:%H${FIELD_SEP}%s${FIELD_SEP}%ae${RECORD_SEP}`,

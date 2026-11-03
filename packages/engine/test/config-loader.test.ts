@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { CONFIG_FILENAME, loadProjectConfig, validateConfig } from "../src/loader/config.js";
+import {
+  CONFIG_FILENAME,
+  isIncludeToken,
+  loadProjectConfig,
+  splitInclude,
+  validateConfig,
+} from "../src/loader/config.js";
 
 describe("config loader", () => {
   let tmp: string;
@@ -26,6 +32,25 @@ describe("config loader", () => {
     );
     const cfg = await loadProjectConfig(tmp);
     expect(cfg?.gate.mode).toBe("advisory");
+  });
+
+  test("gate.include accepts tiers and probe ids, rejects anything else", () => {
+    const cfg = validateConfig({
+      version: 1,
+      gate: { mode: "advisory", include: ["executed", "agent.skill-evals-present"] },
+    });
+    expect(cfg.gate.include).toEqual(["executed", "agent.skill-evals-present"]);
+    expect(splitInclude(cfg.gate.include ?? [])).toEqual({
+      tiers: new Set(["executed"]),
+      probeIds: new Set(["agent.skill-evals-present"]),
+    });
+    expect(() =>
+      validateConfig({ version: 1, gate: { mode: "advisory", include: ["fast"] } }),
+    ).toThrow(/gate\/include\/0.*tier.*probe id/);
+    expect(isIncludeToken("reasoned")).toBe(true);
+    expect(isIncludeToken("tests.mutation-configured")).toBe(true);
+    expect(isIncludeToken("Agent.Skills")).toBe(false);
+    expect(isIncludeToken("agent")).toBe(false);
   });
 
   test("full config round-trips through validation", () => {

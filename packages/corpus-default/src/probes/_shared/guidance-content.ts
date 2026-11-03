@@ -7,19 +7,6 @@ type GuidancePart = {
 
 const INCLUDE_ONLY_RE = /^@([A-Za-z0-9._/ -]+)$/;
 
-export async function effectiveGuidanceLineCount(
-  guidance: GuidanceFile[],
-  files: FilesEvidence,
-): Promise<number> {
-  const resolver = createGuidanceResolver(guidance, files);
-  let total = 0;
-  const counted = new Set<string>();
-  for (const file of guidance) {
-    total += await countPath(file.path, resolver, counted, new Set());
-  }
-  return total;
-}
-
 export async function readGuidanceParts(
   guidance: GuidanceFile[],
   files: FilesEvidence,
@@ -47,7 +34,6 @@ function createGuidanceResolver(guidance: GuidanceFile[], files: FilesEvidence) 
   const lowerGuidancePaths = new Map(
     guidance.map((file) => [normalizePath(file.path).toLowerCase(), file.path]),
   );
-  const lineFallback = new Map(guidance.map((file) => [normalizePath(file.path), file.lines]));
 
   return {
     async read(path: string): Promise<string | undefined> {
@@ -58,45 +44,7 @@ function createGuidanceResolver(guidance: GuidanceFile[], files: FilesEvidence) 
     async resolve(path: string): Promise<string | undefined> {
       return resolvePath(path, files, guidancePaths, lowerGuidancePaths);
     },
-    fallbackLines(path: string): number {
-      return lineFallback.get(normalizePath(path)) ?? 0;
-    },
   };
-}
-
-async function countPath(
-  path: string,
-  resolver: ReturnType<typeof createGuidanceResolver>,
-  counted: Set<string>,
-  active: Set<string>,
-): Promise<number> {
-  const resolved = await resolver.resolve(path);
-  if (!resolved) return resolver.fallbackLines(path);
-
-  const key = normalizePath(resolved).toLowerCase();
-  if (counted.has(key)) return 0;
-  if (active.has(key)) return 0;
-  active.add(key);
-  counted.add(key);
-
-  const text = await resolver.read(resolved);
-  if (text === undefined) {
-    active.delete(key);
-    return resolver.fallbackLines(resolved);
-  }
-
-  let total = 0;
-  for (const line of splitLines(text)) {
-    const includePath = parseIncludeOnly(line);
-    if (includePath) {
-      total += await countPath(includePath, resolver, counted, active);
-    } else {
-      total += 1;
-    }
-  }
-
-  active.delete(key);
-  return total;
 }
 
 async function renderPath(

@@ -1,42 +1,33 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
+import { agentFixture } from "./_shared/agent-evidence-fixture.js";
+import { distinctSkills } from "./_shared/agent-tree.js";
 
-const SKILL_FILE_PATTERNS = [
-  /^\.codex\/skills\/[^/]+\/SKILL\.md$/i,
-  /^\.agents\/skills\/[^/]+\/SKILL\.md$/i,
-  /^agents\/skills\/[^/]+\/SKILL\.md$/i,
-  /^\.claude\/commands\/.+\.md$/i,
-  /^\.cursor\/rules\/.+\.mdc$/i,
-  /^\.windsurf\/rules\/.+\.md$/i,
-  /^prompts\/agents\/.+\.md$/i,
-];
+const SKILL = "---\nname: commit\ndescription: Use when committing work.\n---\n\nSteps.\n";
 
 export default defineProbe({
   id: "agent.skills-present",
-  version: "1.0.0",
+  version: "2.0.0",
   dimensions: [
     { id: "context", weight: 1 },
     { id: "feedback", weight: 0.3 },
   ],
   tier: "static",
-  evidence: ["size_stats"],
+  evidence: ["agent_config"],
 
   rationale: `
-    Repository-local skills and slash commands turn recurring agent work into
-    reusable procedures: commit workflow, new-probe authoring, release, smoke
-    testing, debugging, review. Generic guidance tells an agent what matters;
-    skills give it a repeatable path through high-friction tasks.
+    Repository-local skills turn recurring agent work into reusable
+    procedures: commit workflow, release, review, debugging a failing CI
+    run. Guidance says what matters; a skill gives a repeatable path
+    through a high-friction task. Skills are counted once each: a
+    \`.claude/skills\` link onto \`.agents/skills\` and a byte-identical
+    copy in a second root are the same skill, not two.
   `,
 
   remediation:
-    "Add repo-local agent skills or commands for repeated workflows. Good starting points: `/commit`, `/new-probe`, `/release`, `/smoke`, `/debug-failing-ci`, and `/review`. Store them in a tool-native location such as `.codex/skills/<name>/SKILL.md`, `.claude/commands/*.md`, or `.cursor/rules/*.mdc`.",
+    "Add skills for repeated workflows under `.agents/skills/<name>/SKILL.md` (the shared location) and expose them to harnesses that read their own directory with a link such as `.claude/skills -> ../.agents/skills`. Good starting points: `commit`, `release`, `review`, `debug-failing-ci`.",
 
   async detect(ev) {
-    const samples = ev.size_stats.files
-      .map((f) => f.path)
-      .filter((p) => SKILL_FILE_PATTERNS.some((pattern) => pattern.test(p)))
-      .sort()
-      .map((path) => ({ path }));
-
+    const samples = distinctSkills(ev.agent_config.skills).map((s) => ({ path: s.path }));
     return { kind: "count", value: samples.length, samples };
   },
 
@@ -48,42 +39,49 @@ export default defineProbe({
 
   fixtures: [
     {
-      name: "no-local-skills",
-      evidence: {
-        size_stats: {
-          source: "git-ls-files",
-          totalBytes: 100,
-          totalFiles: 1,
-          files: [{ path: "CLAUDE.md", bytes: 100, lines: 5, depth: 0 }],
-        },
-      },
+      name: "no-skills",
+      evidence: agentFixture({ files: { "AGENTS.md": "# root\n" } }),
       expect: { reading: { kind: "count", value: 0, samples: [] }, score: 0 },
     },
     {
-      name: "codex-and-claude-skills",
-      evidence: {
-        size_stats: {
-          source: "git-ls-files",
-          totalBytes: 300,
-          totalFiles: 3,
-          files: [
-            { path: ".codex/skills/new-probe/SKILL.md", bytes: 100, lines: 20, depth: 3 },
-            { path: ".claude/commands/commit.md", bytes: 100, lines: 15, depth: 2 },
-            { path: ".cursor/rules/testing.mdc", bytes: 100, lines: 15, depth: 2 },
-          ],
+      name: "linked-root-and-copy-count-once",
+      evidence: agentFixture({
+        files: {
+          ".agents/skills/commit/SKILL.md": SKILL,
+          ".agents/skills/release/SKILL.md": SKILL.replace("commit", "release"),
+          ".codex/skills/commit/SKILL.md": SKILL,
         },
-      },
+        links: { ".claude/skills": "../.agents/skills" },
+      }),
       expect: {
         reading: {
           kind: "count",
-          value: 3,
+          value: 2,
           samples: [
-            { path: ".claude/commands/commit.md" },
-            { path: ".codex/skills/new-probe/SKILL.md" },
-            { path: ".cursor/rules/testing.mdc" },
+            { path: ".agents/skills/commit/SKILL.md" },
+            { path: ".agents/skills/release/SKILL.md" },
           ],
         },
         score: 80,
+      },
+    },
+    {
+      name: "four-distinct-skills",
+      evidence: agentFixture({
+        files: Object.fromEntries(
+          ["a", "b", "c", "d"].map((n) => [
+            `.agents/skills/${n}/SKILL.md`,
+            SKILL.replace("commit", n),
+          ]),
+        ),
+      }),
+      expect: {
+        reading: {
+          kind: "count",
+          value: 4,
+          samples: ["a", "b", "c", "d"].map((n) => ({ path: `.agents/skills/${n}/SKILL.md` })),
+        },
+        score: 100,
       },
     },
   ],

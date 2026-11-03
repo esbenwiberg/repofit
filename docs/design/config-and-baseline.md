@@ -118,7 +118,7 @@ Array, because a project may layer multiple corpus packages (default + .NET-spec
 - `absolute` — `fitness >= absoluteThreshold` overall + per-dimension `threshold` if set.
 - `advisory` — never fails, just reports. Useful during adoption.
 
-**`include`** — which probe tiers to run. Defaults to all non-opt-in tiers (`static`, `derived`, `historical`). To enable executed: add `"executed"`. To enable reasoned (v1.x): add `"reasoned"`.
+**`include`** — which probe tiers to run, plus any opt-in probes by id. Defaults to all non-opt-in tiers (`static`, `derived`, `historical`). To enable executed: add `"executed"`. To enable reasoned: add `"reasoned"`. A probe that declares `optIn: true` (for example `agent.skill-evals-present`) runs only when its id is listed here or passed on the command line, and only when its tier is also included; `--probe <id>` counts as opting in.
 
 CI typically uses the project default. Local exploration: `repofit check --include executed`.
 
@@ -260,7 +260,7 @@ Exact `claude-code` transport (SDK call vs IPC vs MCP-style bridge) is a v1.x im
 
   "probes": {
     "agent.guidance-present":          100,
-    "agent.guidance-substance":         80,
+    "agent.root-budget":                80,
     "docs.contributing-present":       100,
     "docs.adr-presence":                40,
     "docs.module-readme-coverage":      67,
@@ -371,6 +371,7 @@ Day 2+:
 ```bash
 $ repofit check                       # CI gates against baseline
 $ repofit check --include executed    # local: run the slow stuff too
+$ repofit check --include agent.skill-evals-present   # one opt-in probe by id
 $ repofit check --accept              # after improvement, lock new score
 ```
 

@@ -14,6 +14,8 @@ export type ProbeResult = {
 export type RunOptions = {
   waivers?: Waiver[];
   includeTiers?: ReadonlySet<Tier>;
+  /** Ids of opt-in probes to run; an opt-in probe not listed here is skipped. */
+  includeProbes?: ReadonlySet<string>;
 };
 
 export type RunSummary = {
@@ -40,7 +42,10 @@ export async function runProbesDetailed(
 ): Promise<RunSummary> {
   const waiversByProbe = groupWaivers(opts.waivers ?? []);
   const include = opts.includeTiers ?? DEFAULT_TIERS;
-  const eligible = probes.filter((p) => include.has(p.tier));
+  const includeProbes = opts.includeProbes ?? new Set<string>();
+  const eligible = probes.filter(
+    (p) => include.has(p.tier) && (!p.optIn || includeProbes.has(p.id)),
+  );
   const buckets = groupByTier(eligible);
   const results: ProbeResult[] = [];
   const tierWallClockMs = emptyTierMap();

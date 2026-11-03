@@ -23,7 +23,7 @@ describe("cli help", () => {
 
     const help = check?.helpInformation() ?? "";
     expect(help).toContain("Usage: repofit check [options]");
-    expect(help).toContain("--include <tier>");
+    expect(help).toContain("--include <tier-or-probe>");
     expect(help).toContain("--reporter <name=path>");
   });
 });

@@ -105,7 +105,9 @@ export default defineProbe({
 
 The default `repofit check` only runs `static`, `derived`, and `historical` —
 the cheap, deterministic tiers. Users opt into `executed` or `reasoned`
-explicitly with `--include`.
+explicitly with `--include`. A probe may also set `optIn: true`; it then runs
+only when its id is listed in `--include` or `gate.include`, or named with `--probe`,
+whatever its tier.
 
 ### Reading kinds
 

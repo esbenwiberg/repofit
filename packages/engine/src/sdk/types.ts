@@ -67,6 +67,11 @@ export type Probe = {
   score: ScoreConfig;
   remediation?: string;
   fixtures: Fixture[];
+  /**
+   * An opt-in probe runs only when its id is listed in `gate.include` (or
+   * `--include`), or when selected with `--probe`; its tier gates it as well.
+   */
+  optIn?: boolean;
 };
 
 export type DimensionOverride = { probeId: string; weight: number };
@@ -90,9 +95,80 @@ export type GuidanceFile = {
   lines: number;
 };
 
+/** A symlink seen in the tracked tree (or, without git metadata, on disk). */
+export type LinkInfo = {
+  /** The link's immediate target, as written (relative to the link's directory). */
+  target: string;
+  /** Whether the target resolves to a tracked path inside the repository. */
+  targetExists: boolean;
+  /** `false` when the target escapes the repository root; `targetExists` is then `false` too. */
+  insideRepo: boolean;
+};
+
+/** An instruction file at any depth: AGENTS.md, CLAUDE.md, rule files, copilot instructions. */
+export type InstructionFile = {
+  path: string;
+  /** Number of directory segments above the file; a root file has depth 0. */
+  depth: number;
+  bytes: number;
+  lines: number;
+  /** Hex SHA-256 of the content read (the first 256 KiB of a larger file). */
+  sha256: string;
+  /** Non-null when the path itself is a symlink; `bytes`/`lines`/`sha256` then describe the target. */
+  link: LinkInfo | null;
+  /** `@path` include lines, as written and unresolved. */
+  includes: string[];
+};
+
+export type SkillFrontmatter = {
+  name?: string;
+  description?: string;
+  raw: Record<string, unknown>;
+};
+
+export type SkillFile = {
+  /** The SKILL.md path as enumerated, including paths reached through a linked skills root. */
+  path: string;
+  /** The skill directory. */
+  dir: string;
+  /** The skills root: `.agents/skills`, `.claude/skills`, `packages/x/.codex/skills`, ... */
+  root: string;
+  /** Scalars `name`/`description` plus the raw block; `null` when absent or malformed. */
+  frontmatter: SkillFrontmatter | null;
+  /** Lines after the frontmatter block. */
+  bodyLines: number;
+  sha256: string;
+  /** Non-null when the SKILL.md or its skill directory is a symlink. */
+  link: LinkInfo | null;
+  /** Non-null when the skills root directory is a symlink (`.claude/skills -> .agents/skills`). */
+  dirLink: LinkInfo | null;
+  /** Whether `<dir>/evals/` holds at least one tracked file. */
+  hasEvals: boolean;
+  /** Whether `<dir>/references/` holds at least one tracked file. */
+  hasReferences: boolean;
+};
+
+/** A harness settings or hooks file: `.claude/settings*.json`, `.codex/*`, `.gemini/settings*.json`, `.cursor/hooks.json`. */
+export type HarnessConfigFile = {
+  path: string;
+  link: LinkInfo | null;
+  /** The parsed document when the file is valid JSON; `null` otherwise. */
+  json: unknown | null;
+  /** The parse failure for a `.json` file that did not parse; `null` otherwise. */
+  parseError: string | null;
+};
+
 export type AgentConfigEvidence = {
+  /** Root guidance candidates, read through links; unchanged from engine 1.x. */
   guidance: GuidanceFile[];
   has(path: string): boolean;
+  /** Every recognised instruction file in the tracked tree, at any depth. */
+  instructionFiles: InstructionFile[];
+  /** Every `SKILL.md` under a skills root, including those reached through a linked root. */
+  skills: SkillFile[];
+  harnessConfig: HarnessConfigFile[];
+  /** How the tree was enumerated: the git index, a bounded filesystem walk, or not at all. */
+  source: "git-ls-files" | "filesystem" | "none";
 };
 
 export type NodePackageEvidence = {

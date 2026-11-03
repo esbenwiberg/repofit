@@ -97,26 +97,26 @@ describe("parseJudgeInput", () => {
 
 describe("computeCacheKey", () => {
   test("same request → same key", () => {
-    const a = computeCacheKey(sampleRequest(), "claude-haiku-4-5");
-    const b = computeCacheKey(sampleRequest(), "claude-haiku-4-5");
+    const a = computeCacheKey(sampleRequest(), "claude-haiku-5-5");
+    const b = computeCacheKey(sampleRequest(), "claude-haiku-5-5");
     expect(a).toBe(b);
   });
 
   test("different input → different key", () => {
-    const a = computeCacheKey(sampleRequest({ input: "one" }), "claude-haiku-4-5");
-    const b = computeCacheKey(sampleRequest({ input: "two" }), "claude-haiku-4-5");
+    const a = computeCacheKey(sampleRequest({ input: "one" }), "claude-haiku-5-5");
+    const b = computeCacheKey(sampleRequest({ input: "two" }), "claude-haiku-5-5");
     expect(a).not.toBe(b);
   });
 
   test("different model → different key", () => {
-    const a = computeCacheKey(sampleRequest(), "claude-haiku-4-5");
+    const a = computeCacheKey(sampleRequest(), "claude-haiku-5-5");
     const b = computeCacheKey(sampleRequest(), "claude-opus-4-7");
     expect(a).not.toBe(b);
   });
 
   test("different probe version → different key", () => {
-    const a = computeCacheKey(sampleRequest({ probeVersion: "1.0.0" }), "claude-haiku-4-5");
-    const b = computeCacheKey(sampleRequest({ probeVersion: "1.1.0" }), "claude-haiku-4-5");
+    const a = computeCacheKey(sampleRequest({ probeVersion: "1.0.0" }), "claude-haiku-5-5");
+    const b = computeCacheKey(sampleRequest({ probeVersion: "1.1.0" }), "claude-haiku-5-5");
     expect(a).not.toBe(b);
   });
 });

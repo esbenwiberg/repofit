@@ -14,8 +14,8 @@ import {
   type JudgeResult,
 } from "../../sdk/types.js";
 
-export const DEFAULT_JUDGE_MODEL = "claude-haiku-4-5";
-export const DEFAULT_JUDGE_MODEL_OPENAI = "gpt-4o-mini";
+export const DEFAULT_JUDGE_MODEL = "claude-haiku-5-5";
+export const DEFAULT_JUDGE_MODEL_OPENAI = "gpt-5.4-mini";
 export const DEFAULT_JUDGE_MODEL_CODEX = "codex-cli-default";
 export type JudgeTransport = "api" | "cli" | "openai" | "codex";
 

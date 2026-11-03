@@ -1,42 +1,34 @@
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
+import { agentFixture } from "./_shared/agent-evidence-fixture.js";
+import { distinctSkills, skillName, stripFrontmatter } from "./_shared/agent-tree.js";
 
-const PROBE_VERSION = "1.0.0";
+const PROBE_VERSION = "2.0.0";
 const MAX_SKILLS = 5;
 const MAX_CHARS_PER_SKILL = 3_000;
 const MAX_INPUT_CHARS = 18_000;
 
-const SKILL_FILE_PATTERNS = [
-  /^\.codex\/skills\/[^/]+\/SKILL\.md$/i,
-  /^\.agents\/skills\/[^/]+\/SKILL\.md$/i,
-  /^agents\/skills\/[^/]+\/SKILL\.md$/i,
-  /^\.claude\/commands\/.+\.md$/i,
-  /^\.cursor\/rules\/.+\.mdc$/i,
-  /^\.windsurf\/rules\/.+\.md$/i,
-  /^prompts\/agents\/.+\.md$/i,
-];
-
 const RUBRIC = {
-  task: "Judge whether repository-local agent skills or slash commands would help a coding agent perform repeated workflows correctly.",
+  task: "Judge whether the repository's local skills (SKILL.md files) would make a coding agent perform a repeated workflow correctly. Deterministic probes have already checked that each skill has frontmatter, that its description carries a trigger cue, that its body is within size, and whether it has evals/ and references/ directories; do not score those. Each skill is shown with the description its frontmatter promises and the body that must deliver it. Score what only reading can tell.",
   criteria: [
     {
-      id: "workflow-specific",
+      id: "body-delivers-description",
       description:
-        "Does each skill target a concrete recurring workflow such as commit, new probe, release, smoke test, debugging CI, or review? Generic advice scores low.",
+        "Does the body teach what the description promises? A description that announces a workflow whose body is a stub, a list of links, or something else entirely scores 0; a body that does exactly what the description says, no more, scores 100.",
     },
     {
-      id: "actionable-steps",
+      id: "procedural-not-encyclopaedic",
       description:
-        "Does the skill give ordered, executable steps with commands, files, and expected validation signals?",
+        "Is the body a procedure (ordered steps, the commands to run, the files to touch, the signals that each step worked) rather than a manual? Reference material belongs in references/ and is loaded on demand; a body that reads as documentation scores low.",
+    },
+    {
+      id: "failure-prevented-stated",
+      description:
+        "Does the skill say which failure it prevents: what an agent gets wrong without it? A skill that names the mistake and the signal that it happened scores high; one that cannot say why it exists scores 0.",
     },
     {
       id: "repo-fit",
       description:
-        "Is the skill specific to this repository's structure, tools, conventions, and hazards rather than broadly reusable platitudes?",
-    },
-    {
-      id: "guardrails",
-      description:
-        "Does the skill include safety checks, non-goals, verification, and when to stop or ask for help?",
+        "Is the skill specific to this repository's structure, tools, conventions and hazards rather than reusable platitudes? Generic advice scores low.",
     },
   ],
 } as const;
@@ -49,37 +41,40 @@ export default defineProbe({
     { id: "feedback", weight: 0.5 },
   ],
   tier: "reasoned",
-  evidence: ["files", "size_stats", "judge"],
+  evidence: ["agent_config", "files", "judge"],
 
   rationale: `
-    Local skills can make agents dramatically better, but only when they
-    encode real workflows. A stub named /commit that says "make a good
-    commit" is not useful. This probe samples local skills and judges their
-    specificity, actionability, repo fit, and guardrails.
+    Frontmatter, trigger cues, body size and the presence of evals/ and
+    references/ are checked deterministically (agent.skill-descriptions-
+    trigger, agent.skill-evals-present). What those cannot see is whether
+    the body delivers what the description promises, whether it is a
+    procedure or a manual, and whether the author can say which failure
+    the skill prevents. The field study's best skills were written after
+    watching an agent fail without them and say so; the worst were
+    README chapters with a name. This probe samples the distinct skills
+    (links collapsed) and asks a model exactly those questions.
   `,
 
   remediation:
-    "Turn local skills into concrete recipes: name the workflow, list exact commands and files, include validation signals, document hazards, and explain when the agent should stop. Good first skills are `/commit`, `/new-probe`, `/release`, `/smoke`, `/debug-failing-ci`, and `/review`.",
+    "Turn each skill into a procedure that delivers its description: name the failure it prevents, give ordered steps with exact commands, files and the signal that each step worked, and move reference material into references/. Delete skills whose only content is a pointer or a summary of the README.",
 
   async detect(ev) {
-    const skillPaths = ev.size_stats.files
-      .map((f) => f.path)
-      .filter((p) => SKILL_FILE_PATTERNS.some((pattern) => pattern.test(p)))
-      .sort();
-
-    if (skillPaths.length === 0) {
+    const skills = distinctSkills(ev.agent_config.skills);
+    if (skills.length === 0) {
       return { kind: "na", reason: "no local agent skills found" };
     }
 
-    const sampled: { path: string; text: string }[] = [];
+    const sampled: string[] = [];
     let totalChars = 0;
-    for (const p of skillPaths) {
+    for (const skill of skills) {
       if (sampled.length >= MAX_SKILLS) break;
-      const text = await ev.files.readText(p);
+      const text = await ev.files.readText(skill.path);
       if (!text) continue;
-      const slice = text.slice(0, MAX_CHARS_PER_SKILL);
-      sampled.push({ path: p, text: slice });
-      totalChars += slice.length;
+      const body = stripFrontmatter(text).slice(0, MAX_CHARS_PER_SKILL);
+      const description = skill.frontmatter?.description?.trim() || "(no description)";
+      const facts = `- name: ${skillName(skill)}\n- description: ${description}\n- references/: ${skill.hasReferences ? "present" : "absent"}\n- evals/: ${skill.hasEvals ? "present" : "absent"}`;
+      sampled.push(`# ${skill.path}\n\n${facts}\n\n## Body\n\n${body}`);
+      totalChars += body.length;
       if (totalChars >= MAX_INPUT_CHARS) break;
     }
 
@@ -87,11 +82,10 @@ export default defineProbe({
       return { kind: "na", reason: "local agent skills declared but unreadable" };
     }
 
-    const input = sampled.map((s) => `# ${s.path}\n\n${s.text}`).join("\n\n---\n\n");
     const result = await ev.judge.score({
       probeId: "agent.skills-quality",
       probeVersion: PROBE_VERSION,
-      input,
+      input: sampled.join("\n\n---\n\n"),
       rubric: RUBRIC,
     });
 
@@ -109,38 +103,27 @@ export default defineProbe({
   fixtures: [
     {
       name: "no-skills",
-      evidence: {
-        size_stats: {
-          source: "git-ls-files",
-          totalBytes: 100,
-          totalFiles: 1,
-          files: [{ path: "CLAUDE.md", bytes: 100, lines: 5, depth: 0 }],
-        },
-      },
+      evidence: agentFixture({ files: { "CLAUDE.md": "hi\n" } }),
       expect: { reading: { kind: "na", reason: "no local agent skills found" }, score: null },
     },
     {
       name: "strong-skill",
       evidence: {
-        files: {
-          ".codex/skills/new-probe/SKILL.md":
-            "# New Probe\n\nUse when adding a corpus probe.\n\n1. Add `packages/corpus-default/src/probes/<id>.ts`.\n2. Add fixtures covering N/A, pass, and fail.\n3. Wire it in `src/index.ts`.\n4. Run `npm --workspace @esbenwiberg/corpus-default run typecheck` and `npm --workspace @esbenwiberg/corpus-default test`.\n5. Commit with `feat(corpus): ...`.\n",
-        },
-        size_stats: {
-          source: "git-ls-files",
-          totalBytes: 400,
-          totalFiles: 1,
-          files: [{ path: ".codex/skills/new-probe/SKILL.md", bytes: 400, lines: 10, depth: 3 }],
-        },
+        ...agentFixture({
+          files: {
+            ".agents/skills/new-probe/SKILL.md":
+              "---\nname: new-probe\ndescription: Use when adding a corpus probe; prevents a probe shipped without fixtures.\n---\n# New Probe\n\nWithout this, probes land with no N/A fixture and break the first repo that lacks the evidence.\n\n1. Add `packages/corpus-default/src/probes/<id>.ts`.\n2. Add fixtures covering N/A, pass, and fail.\n3. Wire it in `src/index.ts`.\n4. Run `npm --workspace @esbenwiberg/corpus-default test`; all fixtures pass.\n5. Commit with `feat(corpus): ...`.\n",
+          },
+        }),
         judge: {
           score: 80,
           perCriterion: {
-            "workflow-specific": 80,
-            "actionable-steps": 80,
+            "body-delivers-description": 80,
+            "procedural-not-encyclopaedic": 80,
+            "failure-prevented-stated": 80,
             "repo-fit": 80,
-            guardrails: 80,
           },
-          rationale: "Concrete repo-specific workflow with validation and commit convention.",
+          rationale: "Procedure matches the description and names the failure it prevents.",
           model: "fixture",
         },
       },
@@ -149,12 +132,12 @@ export default defineProbe({
           kind: "judge",
           score: 80,
           perCriterion: {
-            "workflow-specific": 80,
-            "actionable-steps": 80,
+            "body-delivers-description": 80,
+            "procedural-not-encyclopaedic": 80,
+            "failure-prevented-stated": 80,
             "repo-fit": 80,
-            guardrails: 80,
           },
-          rationale: "Concrete repo-specific workflow with validation and commit convention.",
+          rationale: "Procedure matches the description and names the failure it prevents.",
           model: "fixture",
         },
         score: 80,

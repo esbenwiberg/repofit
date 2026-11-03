@@ -1,6 +1,10 @@
+---
+name: dogfood-scan
+description: "Use when running repofit against this repository to check a probe or a release: cheap static scan first, then the executed and reasoned tiers with artifacts kept outside the tree. Not for scanning other repositories."
+---
 # Dogfood Scan
 
-Use this skill when running repofit against this repository.
+**Why this exists:** Artifacts committed by accident, a baseline accepted before the new probe noise was reviewed, or a full reasoned run started without knowing it calls the judge.
 
 1. Build the CLI and corpus:
 

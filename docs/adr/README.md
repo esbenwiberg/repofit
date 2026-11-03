@@ -17,6 +17,7 @@ that points back. Don't edit history — explain how it changed.
 | [0004](./0004-ratchet-baseline-default-gate.md) | Ratchet baseline as the default gate mode | Accepted |
 | [0005](./0005-corpus-pinning-in-baseline.md) | Pin corpus name and version inside the baseline | Accepted |
 | [0006](./0006-exclude-generated-files-from-cost.md) | Exclude generated files from cost-dimension probes | Accepted |
+| [0007](./0007-thin-routed-agent-instructions.md) | Score agent instructions as thin, routed and deterministic first | Accepted |
 
 ## When to write an ADR
 

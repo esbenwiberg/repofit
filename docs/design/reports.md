@@ -191,6 +191,15 @@ Minimal stdout, exit code drives the gate, optional structured artifact.
 repofit: fitness 72 (baseline 70, +2)  ratchet  PASS
 ```
 
+A failing gate adds the verdict reasons and every probe that scored below
+its baseline, so the log explains itself without a second `--json` run:
+
+```
+repofit: fitness 68 (baseline 70, -2)  ratchet  FAIL
+  consistency: 85 < baseline 95
+  commits.conventional-followed: 20 (baseline 100, -80)
+```
+
 Plus:
 
 - Exit code: `0` pass, `1` fail, `2` engine error.
@@ -280,13 +289,13 @@ Current
 
 Contributing probes
   agent.guidance-present          weight 2.0   score 100   (default 1.0, project boost)
-  agent.guidance-substance        weight 1.0   score 80
+  agent.root-budget               weight 1.0   score 80
   docs.readme-present             weight 1.0   score 100
   docs.readme-substance           weight 1.0   score 60
   docs.contributing-present       weight 1.0   score 100
   docs.adr-presence               weight 1.0   score 40
   docs.module-readme-coverage     weight 1.0   score 67
-  (agent.guidance-fresh)          reasoned, excluded
+  (agent.guidance-quality)        reasoned, excluded
 
 Aggregation
   Weighted average; n/a probes dropped; error probes surfaced but not gating.

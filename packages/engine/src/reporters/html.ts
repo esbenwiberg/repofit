@@ -57,7 +57,7 @@ ${baselineSection(input)}
     input.cost ? ` · executed tier ${(input.cost.executedMs / 1000).toFixed(1)}s` : ""
   }</div>
   <div>${input.results.length} probe${input.results.length === 1 ? "" : "s"}${
-    input.config.include?.length ? ` · tiers: static + ${input.config.include.join(", ")}` : ""
+    input.config.include?.length ? ` · include: ${input.config.include.join(", ")}` : ""
   }</div>
 </footer>
 <script>${THEME_TOGGLE}</script>
@@ -262,7 +262,8 @@ function probeRank(r: ProbeResult): number {
 function readingVerdict(r: ProbeResult): string {
   switch (r.reading.kind) {
     case "predicate":
-      return r.reading.value ? "PASS" : "FAIL";
+      // The score already applies the probe's direction; the raw value does not.
+      return r.score === null ? (r.reading.value ? "PASS" : "FAIL") : r.score > 0 ? "PASS" : "FAIL";
     case "na":
       return "N/A";
     case "error":

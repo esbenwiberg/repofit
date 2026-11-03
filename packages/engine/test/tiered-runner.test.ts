@@ -73,6 +73,36 @@ describe("tiered runner", () => {
     expect(results.map((r) => r.probe.id)).toEqual(["static.a"]);
   });
 
+  test("an opt-in probe runs only when its id is included", async () => {
+    const probes: Probe[] = [
+      mkProbe("static.a", "static", async () => ({ kind: "predicate", value: true })),
+      {
+        ...mkProbe("agent.opt", "static", async () => ({ kind: "predicate", value: true })),
+        optIn: true,
+      },
+    ];
+    const defaults = await runProbes(probes, EMPTY_EVIDENCE);
+    expect(defaults.map((r) => r.probe.id)).toEqual(["static.a"]);
+
+    const included = await runProbes(probes, EMPTY_EVIDENCE, {
+      includeProbes: new Set(["agent.opt"]),
+    });
+    expect(included.map((r) => r.probe.id)).toEqual(["static.a", "agent.opt"]);
+  });
+
+  test("including an opt-in probe does not lift its tier gate", async () => {
+    const probes: Probe[] = [
+      {
+        ...mkProbe("agent.opt", "reasoned", async () => ({ kind: "predicate", value: true })),
+        optIn: true,
+      },
+    ];
+    const results = await runProbes(probes, EMPTY_EVIDENCE, {
+      includeProbes: new Set(["agent.opt"]),
+    });
+    expect(results).toEqual([]);
+  });
+
   test("intra-tier probes run in parallel", async () => {
     let bStarted = (): void => undefined;
     let aStarted = (): void => undefined;
