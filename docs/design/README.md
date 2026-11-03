@@ -1,6 +1,6 @@
 # repofit — design corpus
 
-> **Status:** current architectural memory for repofit v1.x. The original
+> **Status:** current architectural memory for repofit (engine 1.3, corpus-default 2.0). The original
 > design work has shipped; docs in this folder are maintained as living design
 > notes, while final project decisions are captured in [`docs/adr/`](../adr/).
 

@@ -22,7 +22,7 @@ entries win on probe id:
 ```json
 {
   "corpus": [
-    { "package": "@esbenwiberg/corpus-default", "version": "1.1.0" },
+    { "package": "@esbenwiberg/corpus-default", "version": "2.0.0" },
     { "package": "@example/repofit-corpus-ruby", "version": "0.1.0" }
   ]
 }

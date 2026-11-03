@@ -280,13 +280,13 @@ Current
 
 Contributing probes
   agent.guidance-present          weight 2.0   score 100   (default 1.0, project boost)
-  agent.guidance-substance        weight 1.0   score 80
+  agent.root-budget               weight 1.0   score 80
   docs.readme-present             weight 1.0   score 100
   docs.readme-substance           weight 1.0   score 60
   docs.contributing-present       weight 1.0   score 100
   docs.adr-presence               weight 1.0   score 40
   docs.module-readme-coverage     weight 1.0   score 67
-  (agent.guidance-fresh)          reasoned, excluded
+  (agent.guidance-quality)        reasoned, excluded
 
 Aggregation
   Weighted average; n/a probes dropped; error probes surfaced but not gating.

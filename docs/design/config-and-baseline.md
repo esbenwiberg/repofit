@@ -260,7 +260,7 @@ Exact `claude-code` transport (SDK call vs IPC vs MCP-style bridge) is a v1.x im
 
   "probes": {
     "agent.guidance-present":          100,
-    "agent.guidance-substance":         80,
+    "agent.root-budget":                80,
     "docs.contributing-present":       100,
     "docs.adr-presence":                40,
     "docs.module-readme-coverage":      67,
