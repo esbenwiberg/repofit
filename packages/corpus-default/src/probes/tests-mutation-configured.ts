@@ -23,6 +23,36 @@ const DOTNET_PROJECT = /\.csproj$/i;
 const DOTNET_PATTERNS = [/StrykerMutator/i, /dotnet-stryker/i];
 const DOTNET_TOOLS = /(?:^|\/)\.config\/dotnet-tools\.json$/;
 
+/**
+ * A package script that names mutation testing (`test:mutation`,
+ * `mutants`) or invokes a tool (`stryker run`, `mutmut run`, `cargo
+ * mutants`). A curated, home-grown mutation script is accepted on the same
+ * footing as a tool: it is still a configured artefact that edits code and
+ * expects tests to fail.
+ */
+const SCRIPT_NAME_TOKENS = new Set([
+  "mutation",
+  "mutations",
+  "mutants",
+  "mutate",
+  "stryker",
+  "mutmut",
+]);
+const SCRIPT_COMMAND_PATTERNS = [
+  /\bstryker\b/i,
+  /\bmutmut\b/i,
+  /\bcargo\s+mutants\b/i,
+  /\bcosmic-ray\b/i,
+  /\bgremlins\b/i,
+  /\bmutation[-_ ]?test/i,
+];
+
+function scriptRunsMutationTesting(name: string, command: string): boolean {
+  const tokens = name.toLowerCase().split(/[:._-]/);
+  if (tokens.some((token) => SCRIPT_NAME_TOKENS.has(token))) return true;
+  return SCRIPT_COMMAND_PATTERNS.some((re) => re.test(command));
+}
+
 async function anyMatch(
   paths: string[],
   patterns: RegExp[],
@@ -37,7 +67,7 @@ async function anyMatch(
 
 export default defineProbe({
   id: "tests.mutation-configured",
-  version: "1.0.0",
+  version: "1.0.1",
   dimensions: [{ id: "feedback", weight: 0.5 }],
   tier: "static",
   evidence: ["node_package", "files", "size_stats"],
@@ -47,8 +77,9 @@ export default defineProbe({
     mutation-testing tool is the one configured artefact that measures
     oracle strength: it edits the code and expects a failure. This probe
     checks for a configured tool (Stryker, Stryker.NET, mutmut,
-    cosmic-ray, cargo-mutants, gremlins); it does not run one, because a
-    mutation score takes minutes and belongs to an opt-in executed probe.
+    cosmic-ray, cargo-mutants, gremlins) or a package script that names or
+    invokes mutation testing; it does not run one, because a mutation score
+    takes minutes and belongs to an opt-in executed probe.
   `,
 
   remediation:
@@ -66,6 +97,9 @@ export default defineProbe({
     if (ev.node_package.present) {
       const deps = { ...ev.node_package.dependencies, ...ev.node_package.devDependencies };
       if (NODE_PACKAGES.some((name) => name in deps)) return { kind: "predicate", value: true };
+      for (const [name, command] of Object.entries(ev.node_package.scripts ?? {})) {
+        if (scriptRunsMutationTesting(name, command)) return { kind: "predicate", value: true };
+      }
     }
     const read = ev.files.readText;
     if (
@@ -123,6 +157,23 @@ export default defineProbe({
           present: true,
           scripts: { test: "vitest run" },
           devDependencies: { vitest: "^3", "@stryker-mutator/core": "^9" },
+        },
+        files: {},
+        size_stats: { source: "git-ls-files", totalBytes: 0, totalFiles: 0, files: [] },
+      },
+      expect: { reading: { kind: "predicate", value: true }, score: 100 },
+    },
+    {
+      name: "own-mutation-script",
+      evidence: {
+        node_package: {
+          present: true,
+          scripts: {
+            test: "vitest run",
+            "test:mutation": "node scripts/verify-engine-mutations.mjs",
+            "verify:local": "npm run test:coverage && npm run test:mutation",
+          },
+          devDependencies: { vitest: "^3" },
         },
         files: {},
         size_stats: { source: "git-ls-files", totalBytes: 0, totalFiles: 0, files: [] },
