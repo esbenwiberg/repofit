@@ -16,6 +16,8 @@ export type LoadedCorpus = {
   fixers: Fixer[];
   sources: { package: string; version: string }[];
   overrides: CorpusOverride[];
+  /** Probe ids a corpus removed, mapped to the id that replaced each (or `null`). */
+  retired: Record<string, string | null>;
 };
 
 export type CorpusModule = {
@@ -23,6 +25,7 @@ export type CorpusModule = {
   probes?: Probe[];
   dimensions?: DimensionRecipe[];
   fixers?: Fixer[];
+  retired?: Record<string, string | null>;
 };
 
 const DEFAULT_CORPUS_PACKAGE = "@esbenwiberg/corpus-default";
@@ -60,8 +63,12 @@ export function mergeCorpora(loaded: { pkg: string; mod: CorpusModule }[]): Load
   const dimsById = new Map<string, { dim: DimensionRecipe; from: string }>();
   const fixersByKey = new Map<string, { fixer: Fixer; from: string }>();
   const overrides: CorpusOverride[] = [];
+  const retired: Record<string, string | null> = {};
 
   for (const { pkg, mod } of loaded) {
+    for (const [id, replacement] of Object.entries(mod.retired ?? {})) {
+      retired[id] = typeof replacement === "string" ? replacement : null;
+    }
     for (const probe of mod.probes ?? []) {
       const existing = probesById.get(probe.id);
       if (existing) {
@@ -98,6 +105,7 @@ export function mergeCorpora(loaded: { pkg: string; mod: CorpusModule }[]): Load
       version: mod.meta?.version ?? "0.0.0",
     })),
     overrides,
+    retired,
   };
 }
 

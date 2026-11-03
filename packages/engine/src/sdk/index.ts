@@ -1,3 +1,4 @@
+export { type AgentConfigTree, buildAgentConfigEvidence } from "../fixtures/agent-config.js";
 export { type FixtureOutcome, runFixture } from "../fixtures/runner.js";
 export { defineDimension } from "./define-dimension.js";
 export { defineFixer } from "./define-fixer.js";
@@ -45,6 +46,8 @@ export type {
   ReporterContext,
   ScoreConfig,
   Severity,
+  SizeStatsEvidence,
+  SizeStatsFile,
   SkillFile,
   SkillFrontmatter,
   StaticFixer,

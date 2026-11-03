@@ -31,7 +31,8 @@ export type Waiver = {
 export type GateConfig = {
   mode: GateMode;
   absoluteThreshold?: number;
-  include?: Tier[];
+  /** Opt-in tiers (`executed`, `reasoned`) and opt-in probe ids to run beyond the defaults. */
+  include?: string[];
 };
 
 export type CommandsOverride = Partial<Record<ToolchainPhase, string[]>>;
@@ -137,16 +138,37 @@ function validateGate(raw: unknown, path: string): GateConfig {
   if (raw.include !== undefined) {
     if (!Array.isArray(raw.include)) throw configError(`${path}/include`, "must be an array");
     for (const [i, t] of raw.include.entries()) {
-      if (typeof t !== "string" || !TIERS.includes(t as Tier)) {
+      if (typeof t !== "string" || !isIncludeToken(t)) {
         throw configError(
           `${path}/include/${i}`,
-          `must be one of ${TIERS.join(", ")}, got ${JSON.stringify(t)}`,
+          `must be a tier (${TIERS.join(", ")}) or a probe id such as "agent.skill-evals-present", got ${JSON.stringify(t)}`,
         );
       }
     }
-    gate.include = raw.include as Tier[];
+    gate.include = raw.include as string[];
   }
   return gate;
+}
+
+const PROBE_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)+$/;
+
+/** A `gate.include` entry: a tier name or a probe id (`family.name`). */
+export function isIncludeToken(value: string): boolean {
+  return TIERS.includes(value as Tier) || (value.includes(".") && PROBE_ID_RE.test(value));
+}
+
+/** Split `include` entries into the tiers and the probe ids they name. */
+export function splitInclude(include: readonly string[]): {
+  tiers: Set<Tier>;
+  probeIds: Set<string>;
+} {
+  const tiers = new Set<Tier>();
+  const probeIds = new Set<string>();
+  for (const token of include) {
+    if (TIERS.includes(token as Tier)) tiers.add(token as Tier);
+    else probeIds.add(token);
+  }
+  return { tiers, probeIds };
 }
 
 function validateCorpus(raw: unknown, path: string): CorpusPin[] {

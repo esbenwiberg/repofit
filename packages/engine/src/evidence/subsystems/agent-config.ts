@@ -15,7 +15,7 @@ import type {
 import { countLines } from "../../util/count-lines.js";
 import { listTrackedEntries } from "../../util/git.js";
 
-const GUIDANCE_CANDIDATES = [
+export const GUIDANCE_CANDIDATES = [
   "CLAUDE.md",
   "AGENTS.md",
   "GEMINI.md",
@@ -51,7 +51,7 @@ const HARNESS_CONFIG_PATTERNS: readonly RegExp[] = [
 const SKILL_PATH_RE = /^(?:(.*)\/)?([^/]+)\/([^/]+)\/SKILL\.md$/;
 const INCLUDE_LINE_RE = /^@([A-Za-z0-9._/ -]+)$/;
 
-type Entry = { path: string; isLink: boolean };
+export type Entry = { path: string; isLink: boolean };
 type Tree = {
   entries: Entry[];
   paths: Set<string>;
@@ -60,40 +60,90 @@ type Tree = {
   links: Map<string, string | null>;
 };
 
+/** Everything the classifier needs, read up front so classification itself is synchronous. */
+export type AgentConfigSnapshot = {
+  entries: Entry[];
+  /** Link path → target as written (`null` when unreadable). */
+  links: Map<string, string | null>;
+  /** Real (non-link) path → content, for every path the classifier may read. */
+  contents: Map<string, Content>;
+  guidance: GuidanceFile[];
+  source: AgentConfigEvidence["source"];
+};
+
 export const agentConfigSubsystem = {
   async gather(ctx: GatherContext): Promise<AgentConfigEvidence> {
     const root = ctx.cwd;
     const guidance = await readRootGuidance(root);
-    const present = new Set(guidance.map((g) => g.path));
 
     const tracked = await listTrackedEntries(root);
     const source: AgentConfigEvidence["source"] = tracked === null ? "filesystem" : "git-ls-files";
-    const base: Entry[] =
+    const entries: Entry[] =
       tracked === null
         ? await walkFilesystem(root)
         : tracked
             .filter((e) => e.mode !== "160000")
             .map((e) => ({ path: e.path, isLink: e.mode === SYMLINK_MODE }));
-    const tree = await buildTree(root, base);
 
-    const [instructionFiles, skills, harnessConfig] = await Promise.all([
-      gatherInstructionFiles(root, tree),
-      gatherSkills(root, tree),
-      gatherHarnessConfig(root, tree),
-    ]);
+    const links = new Map<string, string | null>();
+    await Promise.all(
+      entries
+        .filter((e) => e.isLink)
+        .map(async (e) => {
+          links.set(e.path, await readLinkTarget(root, e.path));
+        }),
+    );
+    const tree = buildTree(entries, links);
 
-    return {
+    const toRead = new Set<string>();
+    for (const e of entries) {
+      if (!isCandidatePath(e.path)) continue;
+      const real = readablePath(tree, e.path);
+      if (real !== null) toRead.add(real);
+    }
+    const contents = new Map<string, Content>();
+    await Promise.all(
+      [...toRead].map(async (path) => {
+        const content = await readContentFromDisk(root, path);
+        if (content) contents.set(path, content);
+      }),
+    );
+
+    return classifyAgentConfig({
+      entries,
+      links,
+      contents,
       guidance,
-      has(path: string): boolean {
-        return present.has(path);
-      },
-      instructionFiles,
-      skills,
-      harnessConfig,
-      source: base.length === 0 && tracked === null ? "none" : source,
-    };
+      source: entries.length === 0 && tracked === null ? "none" : source,
+    });
   },
 };
+
+/** Pure classification of an enumerated tree; the fixture builder uses it on in-memory trees. */
+export function classifyAgentConfig(snapshot: AgentConfigSnapshot): AgentConfigEvidence {
+  const tree = buildTree(snapshot.entries, snapshot.links);
+  const reader: Reader = { tree, contents: snapshot.contents };
+  const present = new Set(snapshot.guidance.map((g) => g.path));
+  return {
+    guidance: snapshot.guidance,
+    has(path: string): boolean {
+      return present.has(path);
+    },
+    instructionFiles: gatherInstructionFiles(reader),
+    skills: gatherSkills(reader),
+    harnessConfig: gatherHarnessConfig(reader),
+    source: snapshot.source,
+  };
+}
+
+/** Paths whose content the classifier may need: instruction files, harness config, any SKILL.md. */
+function isCandidatePath(path: string): boolean {
+  if (isInstructionPath(path)) return true;
+  if (HARNESS_CONFIG_PATTERNS.some((re) => re.test(path))) return true;
+  return path === "SKILL.md" || path.endsWith("/SKILL.md");
+}
+
+type Reader = { tree: Tree; contents: Map<string, Content> };
 
 async function readRootGuidance(root: string): Promise<GuidanceFile[]> {
   const found = await Promise.all(
@@ -136,7 +186,7 @@ async function walkFilesystem(root: string): Promise<Entry[]> {
   return out;
 }
 
-async function buildTree(root: string, entries: Entry[]): Promise<Tree> {
+function buildTree(entries: Entry[], links: Map<string, string | null>): Tree {
   const paths = new Set(entries.map((e) => e.path));
   const dirs = new Set<string>();
   for (const p of paths) {
@@ -146,14 +196,6 @@ async function buildTree(root: string, entries: Entry[]): Promise<Tree> {
       d = dirname(d);
     }
   }
-  const links = new Map<string, string | null>();
-  await Promise.all(
-    entries
-      .filter((e) => e.isLink)
-      .map(async (e) => {
-        links.set(e.path, await readLinkTarget(root, e.path));
-      }),
-  );
   return { entries, paths, dirs, links };
 }
 
@@ -225,25 +267,33 @@ function readablePath(tree: Tree, path: string): string | null {
   return tree.paths.has(target) ? target : null;
 }
 
-type Content = { bytes: number; text: string; sha256: string };
+export type Content = { bytes: number; text: string; sha256: string };
 
-async function readContent(root: string, tree: Tree, path: string): Promise<Content | null> {
-  const real = readablePath(tree, path);
-  if (real === null) return null;
-  const full = join(root, real);
+async function readContentFromDisk(root: string, path: string): Promise<Content | null> {
+  const full = join(root, path);
   try {
     const s = await stat(full);
     if (!s.isFile()) return null;
-    const buffer = await readFile(full);
-    const slice = buffer.byteLength > READ_CAP ? buffer.subarray(0, READ_CAP) : buffer;
-    return {
-      bytes: s.size,
-      text: slice.toString("utf8"),
-      sha256: createHash("sha256").update(slice).digest("hex"),
-    };
+    return contentOf(await readFile(full), s.size);
   } catch {
     return null;
   }
+}
+
+/** Content record for a buffer; reads are capped but `bytes` reports the real size. */
+export function contentOf(buffer: Buffer, bytes = buffer.byteLength): Content {
+  const slice = buffer.byteLength > READ_CAP ? buffer.subarray(0, READ_CAP) : buffer;
+  return {
+    bytes,
+    text: slice.toString("utf8"),
+    sha256: createHash("sha256").update(slice).digest("hex"),
+  };
+}
+
+function readContent(reader: Reader, path: string): Content | null {
+  const real = readablePath(reader.tree, path);
+  if (real === null) return null;
+  return reader.contents.get(real) ?? null;
 }
 
 const EMPTY_SHA256 = createHash("sha256").update("").digest("hex");
@@ -258,12 +308,13 @@ function isInstructionPath(path: string): boolean {
   return INSTRUCTION_PATTERNS.some((re) => re.test(path));
 }
 
-async function gatherInstructionFiles(root: string, tree: Tree): Promise<InstructionFile[]> {
-  const candidates = tree.entries.filter((e) => isInstructionPath(e.path));
-  const files = await Promise.all(
-    candidates.map(async (e): Promise<InstructionFile> => {
+function gatherInstructionFiles(reader: Reader): InstructionFile[] {
+  const { tree } = reader;
+  const files = tree.entries
+    .filter((e) => isInstructionPath(e.path))
+    .map((e): InstructionFile => {
       const link = e.isLink ? linkInfo(tree, e.path) : null;
-      const content = await readContent(root, tree, e.path);
+      const content = readContent(reader, e.path);
       const text = content?.text ?? "";
       return {
         path: e.path,
@@ -274,8 +325,7 @@ async function gatherInstructionFiles(root: string, tree: Tree): Promise<Instruc
         link,
         includes: parseIncludes(text),
       };
-    }),
-  );
+    });
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -306,7 +356,8 @@ function isSkillsRoot(root: string): boolean {
   return /(^|\/)skills$/.test(root);
 }
 
-async function gatherSkills(root: string, tree: Tree): Promise<SkillFile[]> {
+function gatherSkills(reader: Reader): SkillFile[] {
+  const { tree } = reader;
   const direct = new Map<string, SkillLocation>();
   for (const e of tree.entries) {
     const loc = parseSkillPath(e.path);
@@ -354,7 +405,7 @@ async function gatherSkills(root: string, tree: Tree): Promise<SkillFile[]> {
     }
   }
 
-  const describe = async (
+  const describe = (
     loc: SkillLocation,
     opts: {
       readPath: string;
@@ -362,8 +413,8 @@ async function gatherSkills(root: string, tree: Tree): Promise<SkillFile[]> {
       dirLink: LinkInfo | null;
       dirForAssets: string;
     },
-  ): Promise<SkillFile> => {
-    const content = await readContent(root, tree, opts.readPath);
+  ): SkillFile => {
+    const content = readContent(reader, opts.readPath);
     const text = content?.text ?? "";
     const { frontmatter, bodyLines } = parseFrontmatter(text);
     return {
@@ -380,7 +431,7 @@ async function gatherSkills(root: string, tree: Tree): Promise<SkillFile[]> {
     };
   };
 
-  const skills = await Promise.all([
+  const skills = [
     ...[...direct.values()].map((loc) => {
       const entryIsLink = tree.links.has(loc.path);
       return describe(loc, {
@@ -411,7 +462,7 @@ async function gatherSkills(root: string, tree: Tree): Promise<SkillFile[]> {
         dirForAssets: `${targetRoot}/${name}`,
       });
     }),
-  ]);
+  ];
   return skills.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -485,14 +536,13 @@ function unquote(value: string): string {
 // ---------------------------------------------------------------------------
 // Harness configuration
 
-async function gatherHarnessConfig(root: string, tree: Tree): Promise<HarnessConfigFile[]> {
-  const candidates = tree.entries.filter((e) =>
-    HARNESS_CONFIG_PATTERNS.some((re) => re.test(e.path)),
-  );
-  const files = await Promise.all(
-    candidates.map(async (e): Promise<HarnessConfigFile> => {
+function gatherHarnessConfig(reader: Reader): HarnessConfigFile[] {
+  const { tree } = reader;
+  const files = tree.entries
+    .filter((e) => HARNESS_CONFIG_PATTERNS.some((re) => re.test(e.path)))
+    .map((e): HarnessConfigFile => {
       const link = e.isLink ? linkInfo(tree, e.path) : null;
-      const content = await readContent(root, tree, e.path);
+      const content = readContent(reader, e.path);
       if (!e.path.endsWith(".json") || content === null) {
         return { path: e.path, link, json: null, parseError: null };
       }
@@ -506,7 +556,6 @@ async function gatherHarnessConfig(root: string, tree: Tree): Promise<HarnessCon
           parseError: err instanceof Error ? err.message : String(err),
         };
       }
-    }),
-  );
+    });
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }

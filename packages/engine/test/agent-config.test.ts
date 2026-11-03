@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { agentConfigSubsystem } from "../src/evidence/subsystems/agent-config.js";
+import { buildAgentConfigEvidence } from "../src/fixtures/agent-config.js";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync(
@@ -305,5 +306,51 @@ describe("agent_config subsystem", () => {
     const broken = ev.skills.find((s) => s.dir === ".codex/skills/broken");
     expect(broken?.frontmatter).toBeNull();
     expect(broken?.bodyLines).toBe(3);
+  });
+});
+
+describe("buildAgentConfigEvidence", () => {
+  test("classifies an in-memory tree like a checkout, links included", () => {
+    const ev = buildAgentConfigEvidence({
+      files: {
+        "AGENTS.md": "# Root\n\n@docs/extra.md\n",
+        "docs/extra.md": "more\n",
+        "src/CLAUDE.md": "@AGENTS.md\n",
+        ".agents/skills/commit/SKILL.md":
+          "---\nname: commit\ndescription: >\n  Use when committing.\n---\nbody\n",
+        ".agents/skills/commit/evals/case.md": "x",
+        ".claude/settings.json": '{"a":1}',
+        ".claude/settings.local.json": "{broken",
+      },
+      links: { "CLAUDE.md": "AGENTS.md", ".claude/skills": "../.agents/skills" },
+    });
+    expect(ev.source).toBe("git-ls-files");
+    expect(ev.guidance.map((g) => g.path).sort()).toEqual(["AGENTS.md", "CLAUDE.md"]);
+    expect(ev.has("CLAUDE.md")).toBe(true);
+    const claude = ev.instructionFiles.find((f) => f.path === "CLAUDE.md");
+    const root = ev.instructionFiles.find((f) => f.path === "AGENTS.md");
+    expect(claude?.link).toEqual({ target: "AGENTS.md", targetExists: true, insideRepo: true });
+    expect(claude?.sha256).toBe(root?.sha256);
+    expect(root?.includes).toEqual(["docs/extra.md"]);
+    expect(ev.instructionFiles.find((f) => f.path === "src/CLAUDE.md")?.includes).toEqual([
+      "AGENTS.md",
+    ]);
+    expect(ev.skills.map((s) => s.path)).toEqual([
+      ".agents/skills/commit/SKILL.md",
+      ".claude/skills/commit/SKILL.md",
+    ]);
+    expect(ev.skills[0]?.frontmatter?.description).toBe("Use when committing.");
+    expect(ev.skills[0]?.hasEvals).toBe(true);
+    expect(ev.skills[1]?.dirLink?.targetExists).toBe(true);
+    expect(ev.harnessConfig.map((h) => [h.path, h.json, h.parseError !== null])).toEqual([
+      [".claude/settings.json", { a: 1 }, false],
+      [".claude/settings.local.json", null, true],
+    ]);
+  });
+
+  test("a dangling root link does not count as root guidance", () => {
+    const ev = buildAgentConfigEvidence({ files: {}, links: { "CLAUDE.md": "AGENTS.md" } });
+    expect(ev.guidance).toEqual([]);
+    expect(ev.instructionFiles[0]?.link?.targetExists).toBe(false);
   });
 });

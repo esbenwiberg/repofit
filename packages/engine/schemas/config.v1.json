@@ -51,10 +51,13 @@
         },
         "include": {
           "type": "array",
-          "description": "Probe tiers to include in addition to the defaults (static, derived, historical).",
+          "description": "Opt-in probe tiers (executed, reasoned) and opt-in probe ids (for example agent.skill-evals-present) to run in addition to the defaults (static, derived, historical).",
           "items": {
             "type": "string",
-            "enum": ["static", "derived", "historical", "executed", "reasoned"]
+            "anyOf": [
+              { "enum": ["static", "derived", "historical", "executed", "reasoned"] },
+              { "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$" }
+            ]
           }
         }
       }

@@ -67,6 +67,11 @@ export type Probe = {
   score: ScoreConfig;
   remediation?: string;
   fixtures: Fixture[];
+  /**
+   * An opt-in probe runs only when its id is listed in `gate.include` (or
+   * `--include`), or when selected with `--probe`; its tier gates it as well.
+   */
+  optIn?: boolean;
 };
 
 export type DimensionOverride = { probeId: string; weight: number };

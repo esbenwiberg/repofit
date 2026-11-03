@@ -109,7 +109,8 @@ function renderStackBanner(
 function readingVerdict(r: ProbeResult): string {
   switch (r.reading.kind) {
     case "predicate":
-      return r.reading.value ? "PASS" : "FAIL";
+      // The score already applies the probe's direction; the raw value does not.
+      return r.score === null ? (r.reading.value ? "PASS" : "FAIL") : r.score > 0 ? "PASS" : "FAIL";
     case "na":
       return " N/A";
     case "error":
