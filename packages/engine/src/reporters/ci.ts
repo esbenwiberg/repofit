@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { ProbeResult } from "../runner/tiered.js";
 import type { Severity } from "../sdk/types.js";
-import { buildReport, type ReportInput } from "./json.js";
+import { buildReport, type Report, type ReportInput } from "./json.js";
 
 export type CiRenderInput = ReportInput & {
   artifactPath?: string;
@@ -24,7 +24,8 @@ export async function renderCi(input: CiRenderInput): Promise<CiRender> {
   const deltaText = report.fitness.delta === null ? "" : `, ${signed(report.fitness.delta)}`;
 
   const costText = report.cost ? `  executed ${(report.cost.executedMs / 1000).toFixed(1)}s` : "";
-  const stdout = `repofit: fitness ${score} (${baselineText}${deltaText})  ${report.config.gateMode}  ${verdictText}${costText}`;
+  const headline = `repofit: fitness ${score} (${baselineText}${deltaText})  ${report.config.gateMode}  ${verdictText}${costText}`;
+  const stdout = [headline, ...failureDetail(report, input.verdict.reasons)].join("\n");
 
   const annotations = input.githubActions ? githubAnnotations(input.results) : [];
 
@@ -35,6 +36,23 @@ export async function renderCi(input: CiRenderInput): Promise<CiRender> {
   }
 
   return { stdout, annotations, artifactWritten };
+}
+
+/**
+ * A failing gate names what moved: the verdict's reasons, then every probe
+ * that scored below its baseline, so a CI log explains itself without a
+ * second run in `--json`.
+ */
+function failureDetail(report: Report, reasons: readonly string[]): string[] {
+  if (report.verdict !== "fail") return [];
+  const lines = reasons.map((reason) => `  ${reason}`);
+  const dropped = report.probes.filter((p) => p.delta !== null && p.delta < 0);
+  for (const p of dropped) {
+    lines.push(
+      `  ${p.id}: ${p.score ?? "—"} (baseline ${p.baseline ?? "—"}, ${signed(p.delta ?? 0)})`,
+    );
+  }
+  return lines;
 }
 
 function githubAnnotations(results: ProbeResult[]): string[] {

@@ -64,6 +64,42 @@ describe("ci reporter", () => {
     expect(out.annotations).toEqual([]);
   });
 
+  test("a failing ratchet names the reasons and every probe that dropped", async () => {
+    const input = baseInput();
+    input.aggregated = { fitness: 70, dimensions: [] };
+    input.verdict = {
+      mode: "ratchet",
+      pass: false,
+      reasons: ["consistency: 85 < baseline 95"],
+      dimensions: [{ id: "consistency", pass: false, reason: "consistency: 85 < baseline 95" }],
+    };
+    input.results = [
+      {
+        probe: probeWithInventory("a.dropped"),
+        reading: { kind: "inventory", items: [] },
+        score: 20,
+      },
+      {
+        probe: probeWithInventory("b.steady"),
+        reading: { kind: "inventory", items: [] },
+        score: 100,
+      },
+    ];
+    input.baseline = { fitness: 80, dimensions: {}, probes: { "a.dropped": 100, "b.steady": 100 } };
+    const out = await renderCi(input);
+    const lines = out.stdout.split("\n");
+    expect(lines[0]).toContain("FAIL");
+    expect(lines.slice(1)).toEqual([
+      "  consistency: 85 < baseline 95",
+      "  a.dropped: 20 (baseline 100, -80)",
+    ]);
+  });
+
+  test("a passing gate prints the headline alone", async () => {
+    const out = await renderCi(baseInput());
+    expect(out.stdout.split("\n")).toHaveLength(1);
+  });
+
   test("emits GitHub annotations only when githubActions=true", async () => {
     const results: ProbeResult[] = [
       {

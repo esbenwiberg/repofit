@@ -191,6 +191,15 @@ Minimal stdout, exit code drives the gate, optional structured artifact.
 repofit: fitness 72 (baseline 70, +2)  ratchet  PASS
 ```
 
+A failing gate adds the verdict reasons and every probe that scored below
+its baseline, so the log explains itself without a second `--json` run:
+
+```
+repofit: fitness 68 (baseline 70, -2)  ratchet  FAIL
+  consistency: 85 < baseline 95
+  commits.conventional-followed: 20 (baseline 100, -80)
+```
+
 Plus:
 
 - Exit code: `0` pass, `1` fail, `2` engine error.
