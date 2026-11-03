@@ -1,16 +1,16 @@
 {
   "$schema": "https://repofit.dev/schema/baseline.v1.json",
   "version": 1,
-  "acceptedAt": "2026-11-03T10:07:48.125Z",
+  "acceptedAt": "2026-11-03T15:11:56.814Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
-      "version": "2.0.0"
+      "version": "2.0.1"
     }
   ],
-  "fitness": 98.95244308347758,
+  "fitness": 99.14291927395375,
   "dimensions": {
-    "context": 98.51428571428572,
+    "context": 99.65714285714286,
     "consistency": 100,
     "cost": 96.55172413793103,
     "feedback": 98.64864864864865,
@@ -39,7 +39,7 @@
     "deps.audit-configured": 100,
     "deps.lockfile-present": 100,
     "docs.contributing-present": 100,
-    "docs.links-resolved": 80,
+    "docs.links-resolved": 100,
     "docs.readme-present": 100,
     "docs.readme-substance": 100,
     "editorconfig.present": 100,
@@ -72,5 +72,5 @@
     "specs.present": 100,
     "commits.conventional-followed": 100
   },
-  "commit": "8e6332e6defb5360f273eefda99752cf23e0c17c"
+  "commit": "09d859a64251583a21c12ce50766284b48cbfba0"
 }
