@@ -162,12 +162,13 @@ interface HarnessConfigFile {
 | `agent.references-resolve` | static | **new** | context 1, consistency 0.7 | inventory | blueprint 10, anti-patterns 5 & 9 |
 | `agent.commands-resolve` | derived | **new** | consistency 1, context 0.7 | inventory | anti-pattern 4 |
 | `agent.shared-files-portable` | static | **new** | consistency 0.7 | inventory | anti-pattern 10 |
-| `agent.local-settings-not-committed` | static | **new** | safety 0.5 | predicate (negative) | anti-pattern 11 |
+| `agent.local-settings-not-committed` | static | **new** | safety 0.3 | predicate (negative) | anti-pattern 11 |
 | `agent.skill-evals-present` | static | **new, opt-in** | feedback 0.5 | magnitude (%) | blueprint 9 |
 | `agent.guidance-quality` | reasoned | kept, rubric v2 | context 1, feedback 0.3 | judge | anti-patterns 1, 6, 7 |
 | `agent.guidance-fresh` | reasoned | kept, narrowed | context 1, consistency 0.5 | judge | anti-pattern 7 |
 | `agent.guidance-aligned` | reasoned | kept, rubric v2 | context 1, consistency 0.7 | judge | anti-pattern 4 |
 | `agent.skills-quality` | reasoned | kept, rubric v2 | context 1, feedback 0.5 | judge | blueprint 3 & 9 |
+| `tests.mutation-configured` | static | **new** | feedback 0.5 | predicate | study pattern 9 (fail-first proof); oracle strength |
 | `agent.guidance-substance` | — | **removed** | — | — | §1 |
 | `agent.guidance-nested` | — | **removed** | — | — | §1 |
 
@@ -368,9 +369,9 @@ steering blocks (`<corridor>`). Harness-specific files (`CLAUDE.md`,
 Local settings carry machine allowlists and sometimes environment values;
 committing them is a leak vector and a drift source.
 
-**Dimension.** Safety 0.5. Safety gates fitness, so one committed local
-settings file caps the score; that is deliberate and proportionate to what
-those files tend to hold. A fixer appends the paths to `.gitignore`; it does
+**Dimension.** Safety 0.3. Safety gates fitness; at this weight one committed
+local settings file dents the dimension without normally tripping the gate,
+while the secrets probes keep the heavy weights. A fixer appends the paths to `.gitignore`; it does
 not `git rm --cached`, because deleting tracked content is the user's call.
 
 ### 5.13 `agent.skill-evals-present` (new, opt-in)
@@ -384,7 +385,24 @@ repository down for a practice this young would be a ratchet-breaker with no
 decision value. It becomes always-on in a later corpus when the practice is
 common enough that its absence is informative.
 
-### 5.14 Reasoned probes (kept, rubrics rewritten)
+### 5.14 `tests.mutation-configured` (new, outside the `agent.*` family)
+
+**Subject.** Negative space the existing seven `tests.*` probes leave: nothing
+measures oracle strength beyond heuristics. Predicate: a mutation-testing
+tool is configured. Detection by ecosystem: Stryker (`stryker.config.*`,
+`stryker.conf.*`, `@stryker-mutator/core` in dev dependencies), mutmut or
+cosmic-ray (`[tool.mutmut]` / `[tool.cosmic-ray]` in `pyproject.toml`,
+`setup.cfg` section, or the package in dev dependencies), cargo-mutants
+(`.cargo/mutants.toml` or `[workspace.metadata.mutants]`), Stryker.NET
+(`stryker-config.json`, `StrykerMutator` package reference), go-mutesting or
+gremlins (`.gremlins.yaml`).
+
+**Dimension.** Feedback 0.5. **`na`.** No test runner configured
+(`tests.runner-configured` already scores that absence). A mutation *score*
+would be an executed, opt-in probe that runs for minutes; presence is the
+honest scope for this corpus.
+
+### 5.15 Reasoned probes (kept, rubrics rewritten)
 
 All four keep their ids, bump `PROBE_VERSION` (which invalidates the disk
 cache for them) and take the deterministic findings as part of `input` so the
@@ -481,7 +499,7 @@ corpus that fails on its own repository is not credible.
 
 ## 9. Review decisions and open questions
 
-Decided in review (2026-11-02): bands 6/12/24/48 KB with the waiver escape hatch (1); `skill-evals-present` opt-in through probe ids in `include` (2); repofit's own skills move to `.agents/skills` with a `.claude/skills` link in this delivery (4); publishing under the personal scope stays as is for now (5). Item 3 is still open.
+Decided in review (2026-11-02): bands 6/12/24/48 KB with the waiver escape hatch (1); `skill-evals-present` opt-in through probe ids in `include` (2); repofit's own skills move to `.agents/skills` with a `.claude/skills` link in this delivery (4); publishing under the personal scope stays as is for now (5). `local-settings-not-committed` stays in Safety at weight 0.3 so one committed file dents the dimension without normally tripping the gate (3). Mutation testing is measured as a presence probe only (§5.15); repofit itself does not adopt mutation testing in this delivery.
 
 1. **Root budget bands.** 6 / 12 / 24 / 48 KB with a waiver escape hatch, or
    softer (8 / 16 / 32 / 64)? The study supports the former; xpm sits in the
