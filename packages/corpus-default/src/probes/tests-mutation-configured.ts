@@ -26,18 +26,15 @@ const DOTNET_TOOLS = /(?:^|\/)\.config\/dotnet-tools\.json$/;
 /**
  * A package script that names mutation testing (`test:mutation`,
  * `mutants`) or invokes a tool (`stryker run`, `mutmut run`, `cargo
- * mutants`). A curated, home-grown mutation script is accepted on the same
+ * mutants`). A bare `mutation` token is not enough: `codegen:mutations`
+ * generates GraphQL mutations and `db:mutate` seeds a database. A curated, home-grown mutation script is accepted on the same
  * footing as a tool: it is still a configured artefact that edits code and
  * expects tests to fail.
  */
-const SCRIPT_NAME_TOKENS = new Set([
-  "mutation",
-  "mutations",
-  "mutants",
-  "mutate",
-  "stryker",
-  "mutmut",
-]);
+/** Tool names stand on their own; `mutation` needs a testing token beside it. */
+const TOOL_NAME_TOKENS = new Set(["mutants", "stryker", "mutmut"]);
+const MUTATION_NAME_TOKENS = new Set(["mutation", "mutations", "mutate"]);
+const TESTING_NAME_TOKENS = new Set(["test", "tests", "testing", "verify", "check"]);
 const SCRIPT_COMMAND_PATTERNS = [
   /\bstryker\b/i,
   /\bmutmut\b/i,
@@ -49,7 +46,10 @@ const SCRIPT_COMMAND_PATTERNS = [
 
 function scriptRunsMutationTesting(name: string, command: string): boolean {
   const tokens = name.toLowerCase().split(/[:._-]/);
-  if (tokens.some((token) => SCRIPT_NAME_TOKENS.has(token))) return true;
+  if (tokens.some((token) => TOOL_NAME_TOKENS.has(token))) return true;
+  const namesMutation = tokens.some((token) => MUTATION_NAME_TOKENS.has(token));
+  const namesTesting = tokens.some((token) => TESTING_NAME_TOKENS.has(token));
+  if (namesMutation && namesTesting) return true;
   return SCRIPT_COMMAND_PATTERNS.some((re) => re.test(command));
 }
 
@@ -179,6 +179,23 @@ export default defineProbe({
         size_stats: { source: "git-ls-files", totalBytes: 0, totalFiles: 0, files: [] },
       },
       expect: { reading: { kind: "predicate", value: true }, score: 100 },
+    },
+    {
+      name: "graphql-mutations-codegen-is-not-mutation-testing",
+      evidence: {
+        node_package: {
+          present: true,
+          scripts: {
+            test: "vitest run",
+            "codegen:mutations": "graphql-codegen --config mutations.yml",
+            "db:mutate": "node scripts/seed.js",
+          },
+          devDependencies: { vitest: "^3" },
+        },
+        files: {},
+        size_stats: { source: "git-ls-files", totalBytes: 0, totalFiles: 0, files: [] },
+      },
+      expect: { reading: { kind: "predicate", value: false }, score: 0 },
     },
     {
       name: "mutmut-in-pyproject",

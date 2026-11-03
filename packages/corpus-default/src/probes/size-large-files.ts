@@ -10,7 +10,7 @@ const BYTE_THRESHOLD = 100 * 1024;
  * by extension; a binary with an unknown extension still counts.
  */
 const BINARY_EXTENSION =
-  /\.(?:png|jpe?g|gif|webp|avif|bmp|ico|icns|tiff?|psd|pdf|woff2?|ttf|otf|eot|mp[34]|m4[av]|wav|ogg|flac|webm|mov|avi|mkv|zip|gz|tgz|bz2|xz|7z|rar|jar|war|exe|dll|so|dylib|wasm|bin|dat|db|sqlite3?|pyc|class|o|a|lib|pdb|snap|gltf|glb|fbx|blend|lockb)$/i;
+  /\.(?:png|jpe?g|gif|webp|avif|bmp|ico|icns|tiff?|psd|pdf|woff2?|ttf|otf|eot|mp[34]|m4[av]|wav|ogg|flac|webm|mov|avi|mkv|zip|gz|tgz|bz2|xz|7z|rar|jar|war|exe|dll|so|dylib|wasm|bin|dat|db|sqlite3?|pyc|class|o|a|lib|gltf|glb|fbx|blend|lockb)$/i;
 
 export default defineProbe({
   id: "size.large-files",
