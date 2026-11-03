@@ -4,9 +4,17 @@ import { defineProbe } from "@esbenwiberg/repofit/sdk";
 const LINE_THRESHOLD = 2000;
 const BYTE_THRESHOLD = 100 * 1024;
 
+/**
+ * Binary files are not agent context: no agent reads a PNG preview or a
+ * font end-to-end, so their size is storage cost, not token cost. Matched
+ * by extension; a binary with an unknown extension still counts.
+ */
+const BINARY_EXTENSION =
+  /\.(?:png|jpe?g|gif|webp|avif|bmp|ico|icns|tiff?|psd|pdf|woff2?|ttf|otf|eot|mp[34]|m4[av]|wav|ogg|flac|webm|mov|avi|mkv|zip|gz|tgz|bz2|xz|7z|rar|jar|war|exe|dll|so|dylib|wasm|bin|dat|db|sqlite3?|pyc|class|o|a|lib|pdb|snap|gltf|glb|fbx|blend|lockb)$/i;
+
 export default defineProbe({
   id: "size.large-files",
-  version: "1.0.0",
+  version: "1.0.1",
   dimensions: [{ id: "cost", weight: 1 }],
   tier: "derived",
   evidence: ["size_stats"],
@@ -17,7 +25,9 @@ export default defineProbe({
     detours. Counting files past a width threshold surfaces the worst
     offenders. Generated files (lockfiles, files marked
     \`linguist-generated\`) are excluded — they're large by necessity and
-    no agent should read them end-to-end.
+    no agent should read them end-to-end. Binary files (images, fonts,
+    archives, media) are excluded too: they are never loaded as context, so
+    a design preview or a screenshot is storage, not tokens.
   `,
 
   remediation:
@@ -29,7 +39,7 @@ export default defineProbe({
     }
     const samples: Location[] = [];
     for (const f of ev.size_stats.files) {
-      if (f.generated) continue;
+      if (f.generated || BINARY_EXTENSION.test(f.path)) continue;
       if (f.lines > LINE_THRESHOLD || f.bytes > BYTE_THRESHOLD) {
         samples.push({ path: f.path });
       }
@@ -101,6 +111,37 @@ export default defineProbe({
               depth: 1,
               generated: true,
             },
+          ],
+        },
+      },
+      expect: { reading: { kind: "count", value: 0, samples: [] }, score: 100 },
+    },
+    {
+      name: "binary-images-ignored",
+      evidence: {
+        size_stats: {
+          source: "git-ls-files",
+          totalBytes: 900100,
+          totalFiles: 4,
+          totalBytesEffective: 900100,
+          totalFilesEffective: 4,
+          files: [
+            { path: "src/index.ts", bytes: 100, lines: 5, depth: 2, generated: false },
+            {
+              path: "docs/design/direct-planning/previews/01-team-capacity.png",
+              bytes: 350000,
+              lines: 1400,
+              depth: 5,
+              generated: false,
+            },
+            {
+              path: "docs/design/demo-harness/evidence/local-closed.PNG",
+              bytes: 250000,
+              lines: 900,
+              depth: 5,
+              generated: false,
+            },
+            { path: "assets/brand.woff2", bytes: 300000, lines: 0, depth: 2, generated: false },
           ],
         },
       },
