@@ -306,8 +306,13 @@ characters, and containing a trigger cue (`use when`, `when `, `use for`,
 `don't use`, `do not use`, `not for`, case-insensitive); body under 500 lines.
 
 **Reading.** Inventory of non-conforming skills with the failed rule.
-**Bands (share conforming).** `100% → 100`, `≥ 80% → 80`, `≥ 50% → 50`,
-else `20`.
+**Bands (count non-conforming).** `0 → 100`, `1 → 80`, `≤ 3 → 50`,
+else `20`. The design first proposed share-based bands; the scorer bands an
+inventory on its summed severity weight, not on a ratio, and a magnitude
+could not name the offending skills. Counting keeps the inventory and its
+remediation targets; a repository with many skills and a few stragglers
+scores 50, which is the intended nudge, and one where every skill fails
+scores 20 either way.
 **`na`.** No skills.
 
 The judge probe `skills-quality` keeps the question this cannot answer: does
@@ -327,7 +332,13 @@ target is missing.
 sentry's five phantom skills from a documentation example like
 `src/your-module/index.ts`. References containing `<`, `>`, `*`, `{` or `}`
 are templates and are skipped. URLs are skipped. Paths under `node_modules`,
-`dist`, `build` are skipped because they are legitimately untracked.
+`dist`, `build` are skipped because they are legitimately untracked. Two
+more controls came out of dogfooding on repofit itself: a backticked bare
+file name without a directory part (`index.ts`, `.js`, `lint.clean`) names a
+kind of file as often as a file, so it either resolves or is ignored and is
+never blind; and a reference on a line that negates it ("no `CHANGELOG.md`
+discipline", "do not add `src/helpers/`", "instead of", "deprecated") is
+skipped, because the guide is telling the agent what not to look for.
 
 **Reading.** Inventory of blind references, grouped by file.
 **Bands (count).** `0 → 100`, `1 → 70`, `≤ 3 → 40`, else `0`.

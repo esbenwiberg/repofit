@@ -38,6 +38,6 @@ regression tests when probe scoring changes.
 
 ## Probe ids
 
-Use `area.kebab-noun`: `docs.adr-presence`, `agent.guidance-nested`,
+Use `area.kebab-noun`: `docs.adr-presence`, `agent.nested-guidance-lean`,
 `size.repo-token-estimate`. Ids are stable across versions — renaming an id
 is a breaking change for downstream baselines.

@@ -41,7 +41,7 @@ export default defineProbe({
   evidence: ["agent_config", "files", "judge"],
 
   rationale: `
-    Length is a crude proxy for guidance quality (see agent.guidance-substance).
+    Length is a crude proxy for guidance quality (see agent.root-budget).
     A 200-line CLAUDE.md full of generic platitudes is worse than a 30-line
     one that names the actual build command. This probe asks an LLM to judge
     the guidance file against four criteria: specificity, actionability,
