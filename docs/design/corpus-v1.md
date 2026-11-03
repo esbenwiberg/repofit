@@ -60,7 +60,7 @@ Coupling probes to dimensions via prefix would force renames when we move a prob
 | `agent.*` family | static / derived / reasoned | `agent_config`, `files`, `size_stats`, `judge` | see [corpus v2](./corpus-v2-agent-instructions.md) | mixed |
 | `docs.readme-present` | static | `files` | predicate | positive |
 | `docs.readme-substance` | static | `files` | count (sections) | banded |
-| `docs.contributing-present` | static | `files` | predicate | positive |
+| `docs.contributing-present` | static | `files`, `size_stats` | predicate | positive |
 | `docs.adr-presence` | static | `adr_index` | count | banded |
 | `docs.module-readme-coverage` | derived | `files`, `repo_meta` | magnitude (%) | banded |
 

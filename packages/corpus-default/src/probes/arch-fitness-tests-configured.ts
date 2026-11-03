@@ -35,6 +35,32 @@ const GO_MOD_PATTERNS = [
 
 const RUST_MANIFEST_PATTERNS = [/\bcargo-modules\b/i, /\bcargo-deps\b/i];
 
+/**
+ * A package script that names an architecture check (`arch:check`,
+ * `check:boundaries`) or invokes one (`node scripts/check-architecture.mjs`,
+ * `depcruise src`). Home-grown boundary checks are fitness tests too; the
+ * probe accepts them on the script's own word, so a script whose name
+ * says `arch` but checks nothing is the repository's claim to keep honest.
+ */
+const SCRIPT_NAME_TOKENS = new Set(["arch", "architecture", "boundaries", "boundary", "depcruise"]);
+const SCRIPT_COMMAND_PATTERNS = [
+  /\barchitecture\b/i,
+  /\bboundar(?:y|ies)\b/i,
+  /\bdependency[-_ ]rules\b/i,
+  /\bdepcruise\b/i,
+  /\bdependency-cruiser\b/i,
+  /\bmadge\b/i,
+  /\bimport-linter\b/i,
+  /\blint-imports\b/i,
+  /\bts-?arch\b/i,
+];
+
+function scriptChecksArchitecture(name: string, command: string): boolean {
+  const tokens = name.toLowerCase().split(/[:._-]/);
+  if (tokens.some((token) => SCRIPT_NAME_TOKENS.has(token))) return true;
+  return SCRIPT_COMMAND_PATTERNS.some((re) => re.test(command));
+}
+
 const JAVA_BUILD_PATTERNS = [/\bcom\.tngtech\.archunit\b/i, /\barchunit-junit\d?\b/i];
 
 async function anyMatchInFiles(
@@ -52,7 +78,7 @@ async function anyMatchInFiles(
 
 export default defineProbe({
   id: "arch.fitness-tests-configured",
-  version: "1.0.0",
+  version: "1.0.1",
   dimensions: [
     { id: "consistency", weight: 1 },
     { id: "feedback", weight: 0.5 },
@@ -68,7 +94,9 @@ export default defineProbe({
     cheerfully introduce. This probe checks for any of the standard tools
     across the major language ecosystems — dependency-cruiser /
     eslint-plugin-boundaries / ts-arch (JS/TS), NetArchTest / ArchUnitNET
-    (.NET), ArchUnit (Java), import-linter (Python), and Go arch tools.
+    (.NET), ArchUnit (Java), import-linter (Python), and Go arch tools —
+    and for a package script that names or invokes an architecture or
+    boundary check of the repository's own.
   `,
 
   remediation:
@@ -86,6 +114,11 @@ export default defineProbe({
       };
       for (const name of Object.keys(deps)) {
         if (NODE_TOOLS.some((re) => re.test(name))) {
+          return { kind: "predicate", value: true };
+        }
+      }
+      for (const [name, command] of Object.entries(ev.node_package.scripts ?? {})) {
+        if (scriptChecksArchitecture(name, command)) {
           return { kind: "predicate", value: true };
         }
       }
@@ -206,6 +239,45 @@ export default defineProbe({
         },
       },
       expect: { reading: { kind: "predicate", value: true }, score: 100 },
+    },
+    {
+      name: "own-architecture-script",
+      evidence: {
+        files: [],
+        node_package: {
+          present: true,
+          scripts: {
+            "arch:check": "node scripts/check-architecture.mjs",
+            "verify:static": "npm run typecheck && npm run lint && npm run arch:check",
+          },
+        },
+        size_stats: { files: [], totalBytes: 0, totalFiles: 0, source: "git-ls-files" },
+      },
+      expect: { reading: { kind: "predicate", value: true }, score: 100 },
+    },
+    {
+      name: "boundary-check-by-command",
+      evidence: {
+        files: [],
+        node_package: {
+          present: true,
+          scripts: { "lint:layers": "node tools/check-boundaries.js" },
+        },
+        size_stats: { files: [], totalBytes: 0, totalFiles: 0, source: "git-ls-files" },
+      },
+      expect: { reading: { kind: "predicate", value: true }, score: 100 },
+    },
+    {
+      name: "unrelated-scripts",
+      evidence: {
+        files: [],
+        node_package: {
+          present: true,
+          scripts: { build: "tsc -p .", test: "vitest run", "build:search": "node search.js" },
+        },
+        size_stats: { files: [], totalBytes: 0, totalFiles: 0, source: "git-ls-files" },
+      },
+      expect: { reading: { kind: "predicate", value: false }, score: 0 },
     },
     {
       name: "nothing-configured",
