@@ -1,11 +1,11 @@
 {
   "$schema": "https://repofit.dev/schema/baseline.v1.json",
   "version": 1,
-  "acceptedAt": "2026-11-04T11:24:58.843Z",
+  "acceptedAt": "2026-11-04T20:43:43.962Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
-      "version": "2.1.0"
+      "version": "2.2.0"
     }
   ],
   "fitness": 98.85865175520348,
@@ -31,7 +31,6 @@
     "agent.skill-descriptions-trigger": 100,
     "agent.skills-present": 100,
     "agent.skills-single-source": 100,
-    "arch.coupling-hotspots": 100,
     "arch.doc-present": 100,
     "build.configured": 100,
     "changelog.strategy-declared": 100,
@@ -72,7 +71,8 @@
     "size.large-files": 100,
     "size.repo-token-estimate": 70,
     "specs.present": 100,
+    "arch.coupling-hotspots": 100,
     "commits.conventional-followed": 100
   },
-  "commit": "c4425990c5ce0a04288a865e04784579f447661b"
+  "commit": "f37f5f11453c9ea2875bfded5d3e982c430eb12d"
 }
