@@ -1,11 +1,11 @@
 {
   "$schema": "https://repofit.dev/schema/baseline.v1.json",
   "version": 1,
-  "acceptedAt": "2026-11-04T11:18:29.572Z",
+  "acceptedAt": "2026-11-04T11:24:58.843Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
-      "version": "2.0.1"
+      "version": "2.1.0"
     }
   ],
   "fitness": 98.85865175520348,
@@ -74,5 +74,5 @@
     "specs.present": 100,
     "commits.conventional-followed": 100
   },
-  "commit": "04bba986c114a3413e16b0414af36edc178fc648"
+  "commit": "c4425990c5ce0a04288a865e04784579f447661b"
 }
