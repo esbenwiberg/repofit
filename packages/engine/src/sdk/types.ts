@@ -321,6 +321,13 @@ export type CommitRecord = {
   sha: string;
   subject: string;
   authorEmail: string;
+  /**
+   * Repository-relative paths the commit touched (added, modified, deleted
+   * or the new name of a rename). Optional for back-compat: a fixture or an
+   * older gatherer may omit it, and consumers must then treat churn as
+   * unknown rather than zero.
+   */
+  files?: string[];
 };
 
 export type CommitHistoryEvidence = {

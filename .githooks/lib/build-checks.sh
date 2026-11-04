@@ -13,6 +13,11 @@ NC='\033[0m'
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# Git exports these to hooks. Anything below that spawns git (the engine
+# tests `git init` temp repos) would otherwise act on this repository:
+# in a linked worktree that once re-initialised the shared .git as bare.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+
 run_step() {
     local label="$1"
     shift

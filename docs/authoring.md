@@ -162,7 +162,7 @@ The runner gathers evidence once and shares it across probes. Available subsyste
 | `agent_config`   | CLAUDE.md / AGENTS.md / .cursorrules inventory.                               |
 | `ci_workflows`   | `.github/workflows/*.yml` raw contents (GitHub-specific).                     |
 | `gitignore`      | Parsed `.gitignore` with `ignores(path)` predicate.                           |
-| `commit_history` | Last N commits (sha, subject, authorEmail).                                   |
+| `commit_history` | Last N commits (sha, subject, authorEmail, files touched).                    |
 | `commands`       | `ev.commands.run({ argv, warmup, timeoutMs })` — for `executed`-tier probes. |
 | `judge`          | `ev.judge.score({ probeId, probeVersion, input, rubric })` — reasoned probes. |
 | `github_api`     | Branch protection, etc. Optional, requires `GITHUB_TOKEN` / `GH_TOKEN`.       |
