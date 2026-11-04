@@ -34,6 +34,10 @@ examples/ integrations/ specs/   sample configs, CI integrations, schemas
 .agents/skills/          repository skills; .claude/skills links here
 ```
 
+Nested guides, closer file wins: [packages/engine/CLAUDE.md](packages/engine/CLAUDE.md)
+(engine internals), [packages/corpus-default/CLAUDE.md](packages/corpus-default/CLAUDE.md)
+(probe authoring rules), `examples/*/AGENTS.md` (one per sample package).
+
 ## Task routes
 
 | Task | Use |

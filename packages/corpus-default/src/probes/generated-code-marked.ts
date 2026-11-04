@@ -1,15 +1,6 @@
 import type { InventoryItem } from "@esbenwiberg/repofit/sdk";
 import { defineProbe } from "@esbenwiberg/repofit/sdk";
-
-const SOURCE_OR_SCHEMA =
-  /\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|cs|json|ya?ml|graphql|proto)$/i;
-const GENERATED_PATH =
-  /(?:^|\/)(?:generated|__generated__|gen|autogen|openapi-client|graphql\/generated)(?:\/|$)|(?:^|\/)[^/]+\.(?:gen|generated|pb)\.[^.]+$/i;
-const GENERATED_HEADER =
-  /^\s*(?:\/\/|\/\*|\*|#|<!--)\s*(?:@generated|code generated|.*do not edit|auto-generated)/im;
-const SKIP_DIRS = /(?:^|\/)(?:node_modules|coverage|\.git)\//;
-const TEST_OR_FIXTURE_PATH =
-  /(?:\.test\.|\.spec\.|__tests__|^tests?\/|\/tests?\/|^fixtures\/|\/fixtures\/|^examples\/|\/examples\/)/i;
+import { looksGenerated, sourceCandidates } from "./_shared/generated-files.js";
 
 export default defineProbe({
   id: "generated.code-marked",
@@ -33,25 +24,11 @@ export default defineProbe({
     "Mark generated files in `.gitattributes` with `linguist-generated=true`, keep generated code under a clear directory, and document the source command that regenerates it. Agents should patch the source schema/template, not the artifact.",
 
   async detect(ev) {
-    const candidates = ev.size_stats.files
-      .filter((f) => !f.generated)
-      .filter(
-        (f) =>
-          SOURCE_OR_SCHEMA.test(f.path) &&
-          !SKIP_DIRS.test(`/${f.path}`) &&
-          !TEST_OR_FIXTURE_PATH.test(f.path),
-      )
-      .sort((a, b) => a.path.localeCompare(b.path));
+    const candidates = sourceCandidates(ev.size_stats).filter((f) => !f.generated);
 
     const items: InventoryItem[] = [];
     for (const f of candidates) {
-      let looksGenerated = GENERATED_PATH.test(f.path);
-      if (!looksGenerated && f.bytes < 100_000) {
-        const text = await ev.files.readText(f.path);
-        const head = text?.slice(0, 1_000) ?? "";
-        looksGenerated = GENERATED_HEADER.test(head);
-      }
-      if (looksGenerated) {
+      if (await looksGenerated(f, ev.files)) {
         items.push({
           location: { path: f.path },
           severity: "warn",
