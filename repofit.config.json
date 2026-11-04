@@ -1,7 +1,7 @@
 {
   "$schema": "https://repofit.dev/schema/config.v1.json",
   "version": 1,
-  "corpus": [{ "package": "@esbenwiberg/corpus-default", "version": "2.1.0" }],
+  "corpus": [{ "package": "@esbenwiberg/corpus-default", "version": "2.2.0" }],
   "gate": {
     "mode": "ratchet"
   },
