@@ -1,27 +1,29 @@
 {
   "$schema": "https://repofit.dev/schema/baseline.v1.json",
   "version": 1,
-  "acceptedAt": "2026-11-03T15:11:56.814Z",
+  "acceptedAt": "2026-11-04T11:18:29.572Z",
   "corpus": [
     {
       "package": "@esbenwiberg/corpus-default",
       "version": "2.0.1"
     }
   ],
-  "fitness": 99.14291927395375,
+  "fitness": 98.85865175520348,
   "dimensions": {
-    "context": 99.65714285714286,
+    "context": 99.67567567567568,
     "consistency": 100,
-    "cost": 96.55172413793103,
+    "cost": 94.82758620689656,
     "feedback": 98.64864864864865,
     "latency": 100,
     "safety": 100
   },
   "probes": {
+    "agent.generated-paths-protected": null,
     "agent.guidance-present": 100,
     "agent.harness-adapters-thin": 100,
     "agent.local-settings-not-committed": 100,
     "agent.nested-guidance-lean": 100,
+    "agent.nested-guides-routed": 100,
     "agent.references-resolve": 100,
     "agent.root-budget": 100,
     "agent.root-routes": 100,
@@ -68,9 +70,9 @@
     "secrets.precommit-scan-configured": 100,
     "size.directory-depth": 100,
     "size.large-files": 100,
-    "size.repo-token-estimate": 80,
+    "size.repo-token-estimate": 70,
     "specs.present": 100,
     "commits.conventional-followed": 100
   },
-  "commit": "09d859a64251583a21c12ce50766284b48cbfba0"
+  "commit": "04bba986c114a3413e16b0414af36edc178fc648"
 }
