@@ -13,6 +13,7 @@ import docsReadmePresentLlmFixer from "./fixers/docs-readme-present-llm.js";
 import editorconfigPresentFixer from "./fixers/editorconfig-present.js";
 import gitignoreComprehensiveFixer from "./fixers/gitignore-comprehensive.js";
 import agentCommandsResolve from "./probes/agent-commands-resolve.js";
+import agentGeneratedPathsProtected from "./probes/agent-generated-paths-protected.js";
 import agentGuidanceAligned from "./probes/agent-guidance-aligned.js";
 import agentGuidanceFresh from "./probes/agent-guidance-fresh.js";
 import agentGuidancePresent from "./probes/agent-guidance-present.js";
@@ -20,6 +21,7 @@ import agentGuidanceQuality from "./probes/agent-guidance-quality.js";
 import agentHarnessAdaptersThin from "./probes/agent-harness-adapters-thin.js";
 import agentLocalSettingsNotCommitted from "./probes/agent-local-settings-not-committed.js";
 import agentNestedGuidanceLean from "./probes/agent-nested-guidance-lean.js";
+import agentNestedGuidesRouted from "./probes/agent-nested-guides-routed.js";
 import agentReferencesResolve from "./probes/agent-references-resolve.js";
 import agentRootBudget from "./probes/agent-root-budget.js";
 import agentRootRoutes from "./probes/agent-root-routes.js";
@@ -29,6 +31,7 @@ import agentSkillEvalsPresent from "./probes/agent-skill-evals-present.js";
 import agentSkillsPresent from "./probes/agent-skills-present.js";
 import agentSkillsQuality from "./probes/agent-skills-quality.js";
 import agentSkillsSingleSource from "./probes/agent-skills-single-source.js";
+import agentUntrustedContentFramed from "./probes/agent-untrusted-content-framed.js";
 import archBoundariesClear from "./probes/arch-boundaries-clear.js";
 import archCouplingHotspots from "./probes/arch-coupling-hotspots.js";
 import archDocPresent from "./probes/arch-doc-present.js";
@@ -102,6 +105,7 @@ export const meta = {
 
 export const probes = [
   agentCommandsResolve,
+  agentGeneratedPathsProtected,
   agentGuidanceAligned,
   agentGuidanceFresh,
   agentGuidancePresent,
@@ -109,6 +113,7 @@ export const probes = [
   agentHarnessAdaptersThin,
   agentLocalSettingsNotCommitted,
   agentNestedGuidanceLean,
+  agentNestedGuidesRouted,
   agentReferencesResolve,
   agentRootBudget,
   agentRootRoutes,
@@ -118,6 +123,7 @@ export const probes = [
   agentSkillsPresent,
   agentSkillsQuality,
   agentSkillsSingleSource,
+  agentUntrustedContentFramed,
   archBoundariesClear,
   archCouplingHotspots,
   archDocPresent,

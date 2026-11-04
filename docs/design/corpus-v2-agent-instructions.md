@@ -169,11 +169,16 @@ interface HarnessConfigFile {
 | `agent.guidance-aligned` | reasoned | kept, rubric v2 | context 1, consistency 0.7 | judge | anti-pattern 4 |
 | `agent.skills-quality` | reasoned | kept, rubric v2 | context 1, feedback 0.5 | judge | blueprint 3 & 9 |
 | `tests.mutation-configured` | static | **new** | feedback 0.5 | predicate | study pattern 9 (fail-first proof); oracle strength |
+| `agent.nested-guides-routed` | static | **new, 2.1** | context 1 | inventory | study pattern 4 (#20) |
+| `agent.generated-paths-protected` | static | **new, 2.1** | safety 0.3 | inventory | blueprint 6 (#19) |
+| `agent.untrusted-content-framed` | reasoned | **new, 2.1** | safety 0.5 | judge | study pattern 11 (#18) |
 | `agent.guidance-substance` | — | **removed** | — | — | §1 |
 | `agent.guidance-nested` | — | **removed** | — | — | §1 |
 
 Nine new always-on deterministic probes, one opt-in, two kept with new
-semantics, four reasoned kept with rewritten rubrics, two removed. Opt-in
+semantics, four reasoned kept with rewritten rubrics, two removed. Corpus
+2.1 adds two static probes and one reasoned probe (§5.16 to §5.18) from
+the field-study items the 2.0 plan left open. Opt-in
 here means the probe is excluded unless listed in `gate.include`, the same
 mechanism that already gates the `executed` and `reasoned` tiers; it needs a
 small engine extension to allow probe ids (not just tiers) in `include`.
@@ -235,6 +240,12 @@ is thin, not routed: the agent has nowhere to go. Scoring both lets the report
 say which half is missing. Combining them into one number would hide that.
 
 **`na`.** No root instruction file.
+
+**Not a facet: nested-guide routing.** Whether the root names its nested
+guides is scored by `agent.nested-guides-routed` (§5.16), not here. The
+engine scores one reading per probe, and a `count` reading carries no
+samples, so a second facet on this probe could neither name the unreachable
+guides nor be waived per path.
 
 ### 5.4 `agent.nested-guidance-lean` (new)
 
@@ -462,6 +473,107 @@ variant). This doc asserted no id until that check was made. A changed default s
 for existing baselines; the config already lets a repository pin the model,
 and the v2.0.0 release note tells users to re-accept.
 
+### 5.16 `agent.nested-guides-routed` (new in 2.1, study pattern 4)
+
+**Subject.** A nested `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` is loaded only
+once the agent works in its directory; whether it gets there depends on the
+root naming it (expo's "if the directory you will edit contains AGENTS.md,
+read it", sentry's and cloudflare's scope tables). `root-routes` counts
+resolving references in general, so a root can score 100 there and name
+none of its nested guides.
+
+**Detection.** Nested guides are the non-root instruction files with one of
+the three basenames that are neither symlinks nor pointer files, grouped by
+directory. A guide is *named* when the canonical root carries a resolving
+reference to the file or its directory (same extraction as `root-routes`,
+negated and template references skipped), or a backticked or linked scope
+glob (`packages/*/AGENTS.md`, `apps/**`) that matches the file or its
+directory. Per-topic rule files (`.cursor/rules`, `.claude/rules`) are not
+guides here: they carry their own path triggers.
+
+**Reading.** Inventory of nested guide directories the root does not name,
+one item per directory, located at the directory's `AGENTS.md` (or its first
+guide). **Bands (count).** `0 → 100`, `1 → 70`, `≤ 3 → 40`, else `0`, the
+same ladder as `nested-guidance-lean`.
+
+**`na`.** No nested guides; nested guides but no root instruction file.
+
+**Why inventory, not a fraction.** A `magnitude` reading of "fraction named"
+cannot list which guides are unreachable and cannot be waived per path. The
+inventory can, and a repository that keeps an unrouted guide on purpose
+(a vendored example) waives it by path.
+
+**Precedence prose** ("the closer file wins") stays in the
+`guidance-quality` rubric; it is a sentence, not a reference.
+
+### 5.17 `agent.generated-paths-protected` (new in 2.1, blueprint 6)
+
+**Subject.** A root that says "do not edit generated files" is advice; a
+harness permission deny on the generated paths is enforcement
+(supabase: `Edit(**/__generated__/**)`).
+
+**Detection.** The generated set is every tracked source or schema file that
+`size_stats` marks generated (`linguist-generated`) or that
+`generated.code-marked` would recognise by path or header; both probes
+share `_shared/generated-files.ts`. Lockfiles are excluded: a package
+manager regenerates them and nobody denies edits on them. Files are
+grouped into families by directory. A family is protected when every file in
+it matches a write-tool deny (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`,
+a bare tool name denying all) in `permissions.deny` of a tracked
+`.claude/settings.json`, globs resolved gitignore-style relative to that
+settings file's project directory. `settings.local.json` is ignored on
+purpose: it is one machine's file and `local-settings-not-committed` says
+it should not be tracked, so a deny there protects nobody else. Codex,
+Gemini and Cursor settings carry no path-level write deny today and
+contribute nothing; when they grow one, the policy filter widens.
+
+**Reading.** Inventory of unprotected families, one item per directory with
+the editable-of-total count. **Bands.** `0 → 100`, `≤ 2 → 50`, else `0`.
+Safety weight 0.3, matching `local-settings-not-committed`: one unprotected
+family dents the dimension without tripping a gate on its own.
+
+**`na`.** No generated files; generated files but no tracked
+`.claude/settings.json`. The second is deliberate: the practice is
+harness-specific today and a repository using no harness policy at all
+is not told it lacks one. A settings file that fails to parse is present
+but contributes no rules, so its generated families score as unprotected.
+
+**Out of scope.** Scoring the read-only Bash allowlist, or the `allow` and
+`ask` lists at all; a deny is the only rule shape that enforces.
+
+### 5.18 `agent.untrusted-content-framed` (new in 2.1, study pattern 11)
+
+**Subject.** An agent that reads issue text, pull-request descriptions,
+review comments or fetched pages is a prompt-injection surface, and the
+guidance is the only place a repository can say that this content is data,
+not instructions (gemini-cli, mastra, pytorch in the study). Only reading
+can tell whether it does.
+
+**Prefilter (deterministic, in `detect`).** The probe runs the judge only
+when at least one surface reads such content: a skill whose name carries
+`review`, `triage`, `issue` or `pr`, or whose body runs `gh issue|pr
+view|list|diff|checks|comment` or `gh api`; a workflow that reads
+`github.event.<issue|pull_request|comment|review|discussion>.<body|title>`
+or runs a coding-agent action (`anthropics/claude-code-action`,
+`google-github-actions/run-gemini-cli`, `openai/codex-action`, Copilot);
+or root guidance that runs those `gh` commands. The surfaces found are
+listed in the input header as facts the model must not score.
+
+**Rubric.** `content-is-data` (the framing is stated, plainly, once),
+`surfaces-named` (this repository's own surfaces, not a generic
+prompt-injection warning), `steering-has-a-response` (what to do when the
+content tries to steer: quote it, report it, treat author-controlled
+self-steering text as a blocking finding, do not act on it). Input is the
+root guidance with includes expanded plus the bodies of the matching skills,
+capped. Judge reading, Safety weight 0.5, cached per content and
+`PROBE_VERSION`, reasoned tier so it never runs by default.
+
+**`na`.** No surface found; a surface found but no guidance or skill text
+to read.
+
+**Safety weights are unchanged**, so no ADR: the dimension gains two probes
+at 0.3 and 0.5 and keeps its aggregation.
+
 ---
 
 ## 6. Fixtures and tests
@@ -526,6 +638,14 @@ corpus that fails on its own repository is not credible.
 ---
 
 ## 9. Review decisions and open questions
+
+Decided for corpus 2.1 (2026-11-04): issues #18, #19 and #20 ship as three
+probes (§5.16 to §5.18). #20 proposed a facet of `root-routes`; it is a
+separate inventory probe because the engine scores one declarative reading
+per probe and a `count` carries no samples or waivers (§5.3). #19 reads only
+the shared `.claude/settings.json`, never `settings.local.json`, consistent
+with `local-settings-not-committed`. #18 adds no ADR because Safety weights
+and aggregation are untouched.
 
 Decided in review (2026-11-02): bands 6/12/24/48 KB with the waiver escape hatch (1); `skill-evals-present` opt-in through probe ids in `include` (2); repofit's own skills move to `.agents/skills` with a `.claude/skills` link in this delivery (4); publishing under the personal scope stays as is for now (5). `local-settings-not-committed` stays in Safety at weight 0.3 so one committed file dents the dimension without normally tripping the gate (3). Mutation testing is measured as a presence probe only (§5.15); repofit itself does not adopt mutation testing in this delivery.
 
