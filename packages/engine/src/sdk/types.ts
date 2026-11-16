@@ -1,3 +1,5 @@
+import type { AnalysisEvidence } from "../evidence/structural/types.js";
+
 export type Location = {
   path: string;
   range?: { startLine: number; endLine?: number };
@@ -9,6 +11,7 @@ export type InventoryItem = {
   location: Location;
   severity: Severity;
   message: string;
+  relatedLocations?: Location[];
 };
 
 export type Reading =
@@ -340,6 +343,8 @@ export type CommandSpec = {
   cwd?: string;
   timeoutMs?: number;
   warmup?: number;
+  /** Opt-in POSIX process-group cleanup, used for disposable enforcement experiments. */
+  killProcessGroup?: boolean;
   env?: Record<string, string>;
 };
 
@@ -395,6 +400,8 @@ export type JudgeRequest = {
   input: string;
   rubric: JudgeRubric;
   model?: string;
+  /** Optional bounded locations for structured advisory findings. */
+  relatedLocations?: Location[];
 };
 
 export type JudgeResult = {
@@ -403,6 +410,7 @@ export type JudgeResult = {
   rationale: string;
   model: string;
   fromCache: boolean;
+  findings?: (InventoryItem & { relatedLocations: Location[] })[];
 };
 
 export type JudgeEvidence = {
@@ -411,6 +419,8 @@ export type JudgeEvidence = {
 };
 
 export type EvidenceMap = {
+  /** Lazy opt-in analysis; ordinary checks do not enumerate or parse source for it. */
+  repo_analysis?: AnalysisEvidence;
   files: FilesEvidence;
   agent_config: AgentConfigEvidence;
   node_package: NodePackageEvidence;

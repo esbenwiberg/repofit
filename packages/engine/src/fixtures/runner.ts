@@ -66,6 +66,14 @@ export async function runFixture(probe: Probe, fixture: Fixture): Promise<Fixtur
 
 function hydrateFixtureEvidence(raw: Record<string, unknown>): EvidenceMap {
   return {
+    repo_analysis: raw.repo_analysis
+      ? {
+          inspect: async () =>
+            raw.repo_analysis as Awaited<
+              ReturnType<NonNullable<EvidenceMap["repo_analysis"]>["inspect"]>
+            >,
+        }
+      : undefined,
     files: hydrateFiles(raw.files),
     agent_config: hydrateAgentConfig(raw.agent_config),
     node_package: hydrateNodePackage(raw.node_package),
