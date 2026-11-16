@@ -1,9 +1,9 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { extract } from "../src/evidence/structural/adapters.js";
 import { analyzeRepository } from "../src/evidence/structural/analysis.js";
 import { groupPackets, judgePackets } from "../src/evidence/structural/discovery.js";
@@ -473,12 +473,13 @@ describe("explicit command/model boundaries", () => {
       rejectsInvalid: true,
     });
   });
-  it("times out and kills descendant processes inheriting checker pipes", async () => {
-    const marker = join(cwd, "survivor.txt");
-    const child = `setTimeout(() => { require('fs').writeFileSync(${JSON.stringify(marker)}, 'survived') }, 700);`;
+  it("times out and kills a ready descendant server inheriting checker pipes", async () => {
+    // A real passive server survives IPC disconnection when only its parent is killed.
+    const child =
+      "require('node:net').createServer().listen(0,'127.0.0.1',()=>process.send('ready'));";
     await put(
       "check.mjs",
-      `import {spawn} from 'node:child_process'; spawn(process.execPath,['-e',${JSON.stringify(child)}],{stdio:'inherit'}); setTimeout(()=>{},5000);`,
+      `import {spawn} from 'node:child_process'; const child = spawn(process.execPath,['-e',${JSON.stringify(child)}],{stdio:['ignore','inherit','inherit','ipc']}); child.on('message', message => { if(message==='ready') process.stdout.write('descendant:'+child.pid+'\\n'); });`,
     );
     await put(
       "repofit.policy.json",
@@ -492,18 +493,45 @@ describe("explicit command/model boundaries", () => {
             valid: { path: "ok", content: "ok" },
             invalid: { path: "bad", content: "bad" },
             expectedDiagnostic: "never",
-            timeoutMs: 100,
+            timeoutMs: 500,
           },
         ],
       }),
     );
-    const started = Date.now();
+    const started = performance.now();
     const report = await analyzeRepository(cwd, { experiment: true });
-    expect(Date.now() - started).toBeLessThan(2500);
-    expect(report.policy.experiments[0]?.executions.every((r) => r.timedOut)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(2500);
+    const executions = report.policy.experiments[0]?.executions ?? [];
+    expect(executions.every((r) => r.timedOut)).toBe(true);
     expect(report.policy.experiments[0]?.rejectsInvalid).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    const descendants = executions.flatMap((r) =>
+      [...r.stdout.matchAll(/^descendant:(\d+)$/gm)].map((m) => Number(m[1])),
+    );
+    expect(descendants).toHaveLength(2); // Both descendants reached actual server readiness.
+    for (const pid of descendants)
+      await vi.waitFor(
+        () => {
+          try {
+            process.kill(pid, 0);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+            throw error;
+          }
+          // Linux may retain a killed orphan as a zombie until init reaps it; it cannot run.
+          let state: string;
+          try {
+            state = execFileSync("ps", ["-p", String(pid), "-o", "stat="], {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+          } catch (error) {
+            if ((error as { status?: number }).status === 1) return;
+            throw error;
+          }
+          expect(state).toMatch(/^Z/);
+        },
+        { timeout: 2000, interval: 25 },
+      );
   });
 
   it("uses structured bounded judge packets and rejects invented related locations", async () => {

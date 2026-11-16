@@ -1,3 +1,5 @@
+import type { AnalysisEvidence } from "../evidence/structural/types.js";
+
 export type Location = {
   path: string;
   range?: { startLine: number; endLine?: number };
@@ -418,7 +420,7 @@ export type JudgeEvidence = {
 
 export type EvidenceMap = {
   /** Lazy opt-in analysis; ordinary checks do not enumerate or parse source for it. */
-  repo_analysis?: import("../evidence/structural/types.js").AnalysisEvidence;
+  repo_analysis?: AnalysisEvidence;
   files: FilesEvidence;
   agent_config: AgentConfigEvidence;
   node_package: NodePackageEvidence;
