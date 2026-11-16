@@ -380,3 +380,9 @@ When added, the contract is: a reporter receives the JSON report shape (§5) and
 - **Delta** — change from baseline; signed integer or `=` for no change.
 - **Gating cap** — when a gating dimension's score caps the overall fitness.
 - **Reporter** — module that turns the JSON report into a user-facing output (human, json, ci, …).
+
+## Observed command executions (implemented extension)
+
+JSON reports may include `executions`: directly observed command attempts with `sequence`, `argv`, `cwd`, `role` (`warmup` or `measured`), `firstObserved`, exit code, timeout, duration, stdout/stderr and `diagnosticsTruncated`. Diagnostics are bounded to 4 KiB per stream. Existing callers may omit this field. Human output gives a compact attempt summary; HTML includes expandable diagnostics. An empty list means the scan recorded no command executions.
+
+Existing latency scores remain measured-run scores. First-observed execution is not a clean cold measurement, and setup/cache state is unknown. A successful command does not establish relevant assertions or test coverage. Environment values are not recorded; arguments and output can nevertheless contain sensitive data, so inspect report artifacts before sharing. See ADR-0008.

@@ -93,3 +93,29 @@ describe("renderHuman — no-stack banner", () => {
     expect(out).not.toContain("no supported stack detected");
   });
 });
+
+test("reports unsuccessful command attempts separately from a passing gate", () => {
+  const out = renderHuman(
+    baseInput({
+      executions: [
+        {
+          sequence: 1,
+          argv: ["node", "check.js"],
+          cwd: "/repo",
+          role: "warmup",
+          firstObserved: true,
+          exitCode: 7,
+          durationMs: 12,
+          timedOut: false,
+          stdout: "",
+          stderr: "failure",
+          diagnosticsTruncated: false,
+        },
+      ],
+    }),
+  );
+  expect(out).toContain("1 command attempt(s), 1 unsuccessful");
+  expect(out).toContain("warmup / first observed: exit 7");
+  expect(out).toContain("not a clean cold run");
+  expect(out).toContain("advisory  ·  PASS");
+});

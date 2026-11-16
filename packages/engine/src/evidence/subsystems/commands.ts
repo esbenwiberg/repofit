@@ -1,27 +1,76 @@
 import { spawn } from "node:child_process";
-import type { CommandRun, CommandSpec, CommandsEvidence, GatherContext } from "../../sdk/types.js";
+import { resolve } from "node:path";
+import type {
+  CommandExecution,
+  CommandRun,
+  CommandSpec,
+  CommandsEvidence,
+  GatherContext,
+} from "../../sdk/types.js";
 import { startTimer } from "../../util/timing.js";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_BYTES = 1_048_576;
+const MAX_DIAGNOSTIC_BYTES = 4_096;
 
 export const commandsSubsystem = {
   gather(ctx: GatherContext): CommandsEvidence {
+    const history: CommandExecution[] = [];
+    const observed = new Set<string>();
+    let sequence = 0;
     return {
+      records: () =>
+        history
+          .slice()
+          .sort((a, b) => a.sequence - b.sequence)
+          .map((record) => ({ ...record, argv: [...record.argv] })),
       async run(spec: CommandSpec): Promise<CommandRun> {
-        const cwd = spec.cwd ?? ctx.cwd;
+        const cwd = resolve(spec.cwd ?? ctx.cwd);
+        const argv = [...spec.argv];
         const timeoutMs = spec.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         const warmup = spec.warmup ?? 0;
+        const key = JSON.stringify([
+          argv,
+          cwd,
+          Object.entries(spec.env ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+        ]);
+        const attempt = async (role: CommandExecution["role"]): Promise<CommandRun> => {
+          const firstObserved = !observed.has(key);
+          observed.add(key);
+          const order = ++sequence;
+          const run = await execOne(argv, cwd, timeoutMs, spec.env);
+          history.push({
+            ...run,
+            sequence: order,
+            argv: [...argv],
+            cwd,
+            role,
+            firstObserved,
+            stdout: diagnostic(run.stdout),
+            stderr: diagnostic(run.stderr),
+            diagnosticsTruncated:
+              Buffer.byteLength(run.stdout) > MAX_DIAGNOSTIC_BYTES ||
+              Buffer.byteLength(run.stderr) > MAX_DIAGNOSTIC_BYTES,
+          });
+          return run;
+        };
 
         for (let i = 0; i < warmup; i += 1) {
-          await execOne(spec.argv, cwd, timeoutMs, spec.env);
+          await attempt("warmup");
         }
 
-        return execOne(spec.argv, cwd, timeoutMs, spec.env);
+        return attempt("measured");
       },
     };
   },
 };
+
+function diagnostic(text: string): string {
+  const bytes = Buffer.from(text);
+  let end = Math.min(bytes.length, MAX_DIAGNOSTIC_BYTES);
+  while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) end -= 1;
+  return bytes.subarray(0, end).toString("utf8");
+}
 
 function execOne(
   argv: string[],
