@@ -4,7 +4,7 @@ import type { CorpusPin, GateMode } from "../loader/config.js";
 import type { LoadedCorpus } from "../loader/corpus.js";
 import type { EffectiveDimension } from "../loader/effective-dimensions.js";
 import type { ProbeResult } from "../runner/tiered.js";
-import type { Reading, ToolchainStack } from "../sdk/types.js";
+import type { CommandExecution, Reading, ToolchainStack } from "../sdk/types.js";
 import type { Drift } from "../verdict/drift.js";
 import type { Verdict } from "../verdict/index.js";
 
@@ -28,6 +28,7 @@ export type ReportInput = {
   ranAt?: string;
   cost?: { executedMs: number };
   toolchain?: { stacks: ToolchainStack[]; primary: ToolchainStack | null };
+  executions?: readonly CommandExecution[];
 };
 
 export type FitnessBlock = {
@@ -70,6 +71,7 @@ export type Report = {
   drift: Drift;
   summary: { ran: number; pass: number; fail: number; na: number; error: number };
   cost?: { executedMs: number };
+  executions?: readonly CommandExecution[];
 };
 
 export function buildReport(input: ReportInput): Report {
@@ -100,6 +102,7 @@ export function buildReport(input: ReportInput): Report {
     drift: input.drift,
     summary: summarize(input.results),
     ...(input.cost ? { cost: input.cost } : {}),
+    ...(input.executions ? { executions: input.executions } : {}),
   };
 }
 

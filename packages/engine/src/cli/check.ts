@@ -131,6 +131,7 @@ export async function check(opts: CheckOptions): Promise<number> {
       : null,
     cost,
     toolchain: { stacks: evidence.toolchain.stacks, primary: evidence.toolchain.primary },
+    ...(evidence.commands.records ? { executions: evidence.commands.records() } : {}),
   };
 
   if (opts.html) {
@@ -163,6 +164,7 @@ export async function check(opts: CheckOptions): Promise<number> {
         verdict,
         drift,
         cost,
+        ...(reportInput.executions ? { executions: reportInput.executions } : {}),
         toolchain: { stacks: evidence.toolchain.stacks, primary: evidence.toolchain.primary },
       }),
     );

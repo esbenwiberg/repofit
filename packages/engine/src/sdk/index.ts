@@ -8,6 +8,7 @@ export type {
   AgentConfigEvidence,
   Band,
   CentralPackagesInfo,
+  CommandExecution,
   CommitHistoryEvidence,
   CommitRecord,
   DimensionAssignment,

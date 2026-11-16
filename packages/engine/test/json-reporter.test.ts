@@ -3,7 +3,7 @@ import type { Aggregated } from "../src/aggregator/index.js";
 import type { LoadedCorpus } from "../src/loader/corpus.js";
 import { buildReport, type ReportInput } from "../src/reporters/json.js";
 import type { ProbeResult } from "../src/runner/tiered.js";
-import type { Probe } from "../src/sdk/types.js";
+import type { CommandExecution, Probe } from "../src/sdk/types.js";
 import type { Verdict } from "../src/verdict/index.js";
 
 const fakeProbe = (id: string, tier: string = "static"): Probe => ({
@@ -126,4 +126,30 @@ describe("json reporter", () => {
     const withCost = buildReport(inputFrom({ cost: { executedMs: 12_345 } }));
     expect(withCost.cost).toEqual({ executedMs: 12_345 });
   });
+});
+
+test("execution metadata is optional and preserves unsuccessful warm-ups without affecting scores", () => {
+  const executions: CommandExecution[] = [
+    {
+      sequence: 1,
+      argv: ["node", "check.js"],
+      cwd: "/repo",
+      role: "warmup",
+      firstObserved: true,
+      exitCode: 7,
+      durationMs: 12,
+      timedOut: false,
+      stdout: "",
+      stderr: "expected failure",
+      diagnosticsTruncated: false,
+    },
+  ];
+  const before = buildReport(inputFrom({}));
+  const after = buildReport(inputFrom({ executions }));
+  expect(before.executions).toBeUndefined();
+  expect(after.executions).toEqual(executions);
+  expect(after.fitness).toEqual(before.fitness);
+  expect(after.probes).toEqual(before.probes);
+  expect(after.verdict).toBe(before.verdict);
+  expect(buildReport(inputFrom({ executions: [] })).executions).toEqual([]);
 });

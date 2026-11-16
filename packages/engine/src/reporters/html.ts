@@ -48,6 +48,7 @@ ${opportunities.length > 0 ? opportunitiesSection(opportunities) : ""}
 
 <main>
 ${dimensionSections(input.aggregated.dimensions, input.results, input.baseline?.probes ?? {})}
+${executionSection(input)}
 </main>
 
 ${baselineSection(input)}
@@ -66,6 +67,28 @@ ${baselineSection(input)}
 `;
 
   return `${head}${body}`;
+}
+
+function executionSection(input: ReportInput): string {
+  if (!input.executions?.length) return "";
+  const rows = input.executions
+    .map((run) => {
+      const status = run.timedOut
+        ? "timeout"
+        : run.exitCode === null
+          ? "not completed"
+          : `exit ${run.exitCode}`;
+      return `<details class="probe execution"><summary><span class="execution-label">#${run.sequence} ${esc(run.role)}${run.firstObserved ? " / first observed" : ""} · ${esc(status)} · ${run.durationMs.toFixed(0)}ms</span></summary>
+<div class="p-body">
+<p class="execution-command"><strong>Command</strong><br><code>${esc(JSON.stringify(run.argv))}</code></p>
+<p class="execution-cwd"><strong>Working directory</strong><br><code>${esc(run.cwd)}</code></p>
+${run.stdout ? `<pre>${esc(run.stdout)}</pre>` : ""}
+${run.stderr ? `<pre>${esc(run.stderr)}</pre>` : ""}
+${run.diagnosticsTruncated ? "<p>Diagnostics truncated to 4 KiB per stream.</p>" : ""}</div></details>`;
+    })
+    .join("\n");
+  return `<section class="dim"><h2>Observed command executions</h2>
+<p>Directly recorded attempts, including warm-ups and failures. Scores are unchanged. First observed is not a clean cold run; setup/cache state is unknown.</p>${rows}</section>`;
 }
 
 type Opportunity = {
@@ -839,6 +862,10 @@ main { padding: 0 32px 32px; }
   border-top: 1px solid var(--line);
   background: var(--surface-3);
 }
+.execution summary { align-items: flex-start; }
+.execution-label { min-width: 0; overflow-wrap: anywhere; }
+.execution-command code, .execution-cwd code { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.execution pre { max-width: 100%; white-space: pre; overflow-x: auto; }
 .p-rationale p {
   margin: 12px 0;
   max-width: 70ch;

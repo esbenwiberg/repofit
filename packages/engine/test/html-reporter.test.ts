@@ -274,3 +274,32 @@ describe("html reporter", () => {
     expect(opSection).not.toContain("secrets.precommit-scan-configured");
   });
 });
+
+test("renders observed execution details with escaped diagnostics", () => {
+  const html = renderHtml(
+    inputFrom({
+      executions: [
+        {
+          sequence: 1,
+          argv: ["node", "<check>"],
+          cwd: "/repo",
+          role: "warmup",
+          firstObserved: true,
+          exitCode: 7,
+          durationMs: 12,
+          timedOut: false,
+          stdout: "<script>bad()</script>",
+          stderr: "expected <actual>",
+          diagnosticsTruncated: true,
+        },
+      ],
+    }),
+  );
+  expect(html).toContain("Observed command executions");
+  expect(html).toContain("warmup / first observed");
+  expect(html).toContain("exit 7");
+  expect(html).toContain("&lt;script&gt;bad()&lt;/script&gt;");
+  expect(html).not.toContain("<script>bad()</script>");
+  expect(html).toContain("4 KiB per stream");
+  expect(html).toContain("setup/cache state is unknown");
+});

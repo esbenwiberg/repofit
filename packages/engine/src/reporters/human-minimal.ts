@@ -1,6 +1,6 @@
 import type { Aggregated } from "../aggregator/index.js";
 import type { ProbeResult } from "../runner/tiered.js";
-import type { ToolchainStack } from "../sdk/types.js";
+import type { CommandExecution, ToolchainStack } from "../sdk/types.js";
 import type { Drift } from "../verdict/drift.js";
 import type { Verdict } from "../verdict/index.js";
 
@@ -10,6 +10,7 @@ export type RenderInput = {
   verdict: Verdict;
   drift: Drift;
   cost?: { executedMs: number };
+  executions?: readonly CommandExecution[];
   toolchain?: { stacks: ToolchainStack[]; primary: ToolchainStack | null };
 };
 
@@ -57,6 +58,24 @@ export function renderHuman(input: RenderInput): string {
   lines.push(`  gate     ${verdict.mode}  ·  ${verdict.pass ? "PASS" : "FAIL"}`);
   for (const reason of verdict.reasons) lines.push(`           ${reason}`);
   if (cost) lines.push(`  cost     executed tier ${(cost.executedMs / 1000).toFixed(1)}s`);
+  if (input.executions?.length) {
+    const unsuccessful = input.executions.filter((r) => r.timedOut || r.exitCode !== 0).length;
+    lines.push(
+      `  observed ${input.executions.length} command attempt(s), ${unsuccessful} unsuccessful; scores unchanged`,
+    );
+    lines.push("           first observed is not a clean cold run; setup/cache state unknown");
+    for (const r of input.executions.slice(0, 8)) {
+      const status = r.timedOut
+        ? "timeout"
+        : r.exitCode === null
+          ? "not completed"
+          : `exit ${r.exitCode}`;
+      lines.push(
+        `           #${r.sequence} ${r.role}${r.firstObserved ? " / first observed" : ""}: ${status}, ${r.durationMs.toFixed(0)}ms ${JSON.stringify(r.argv)}`,
+      );
+    }
+    if (input.executions.length > 8) lines.push("           more attempts in JSON/HTML evidence");
+  }
 
   if (drift.newProbes.length > 0) {
     lines.push("");

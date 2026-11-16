@@ -351,8 +351,20 @@ export type CommandRun = {
   timedOut: boolean;
 };
 
+export type CommandExecution = CommandRun & {
+  sequence: number;
+  argv: string[];
+  cwd: string;
+  role: "warmup" | "measured";
+  /** First observed argv/cwd/environment combination in this scan, not a clean cold run. */
+  firstObserved: boolean;
+  diagnosticsTruncated: boolean;
+};
+
 export type CommandsEvidence = {
   run(spec: CommandSpec): Promise<CommandRun>;
+  /** Snapshot of directly observed attempts; optional for third-party fixture compatibility. */
+  records?(): readonly CommandExecution[];
 };
 
 export type BranchProtectionResult =
