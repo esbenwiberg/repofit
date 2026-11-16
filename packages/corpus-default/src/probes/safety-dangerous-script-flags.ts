@@ -24,7 +24,7 @@ export default defineProbe({
   `,
 
   remediation:
-    "Remove dangerous flags from npm scripts where possible: prefer `rimraf dist` over `rm -rf dist`, drop `--no-verify` (fix the hook instead), avoid `--force` and `sudo`, and never pipe `curl … | bash`. If a script genuinely needs one of these (e.g., `rm -rf dist` is fine for a clean step), add a comment explaining why so reviewers and agents skip the alarm.",
+    "Remove dangerous flags from npm scripts where possible: prefer `rimraf dist` over `rm -rf dist`, drop `--no-verify` (fix the hook instead), avoid `--force` and `sudo`, and never pipe `curl … | bash`. If a script genuinely needs one of these (e.g., `rm -rf dist` is fine for a clean step), assess its targets, permissions and failure behavior, narrow its scope, and use an explicit location-scoped RepoFit waiver with a reason and expiry when the risk is justified. Comments can preserve that rationale; they do not suppress this finding.",
 
   async detect(ev) {
     if (!ev.node_package.present) return { kind: "na", reason: "no package.json" };

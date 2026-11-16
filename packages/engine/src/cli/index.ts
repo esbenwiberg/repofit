@@ -6,6 +6,7 @@ import { VERSION } from "../index.js";
 import { isIncludeToken } from "../loader/config.js";
 import { TIERS } from "../sdk/types.js";
 import { errorMessage } from "../util/error-message.js";
+import { analyze } from "./analyze.js";
 import { apply } from "./apply.js";
 import { check, type OutputMode } from "./check.js";
 import { explain } from "./explain.js";
@@ -134,6 +135,50 @@ export function createProgram(): Command {
         } catch (err) {
           console.error(`repofit: ${errorMessage(err)}`);
           process.exit(2);
+        }
+      },
+    );
+
+  program
+    .command("analyze")
+    .description(
+      "Opt-in advisory policy, structural contradiction and verification readiness analysis.",
+    )
+    .option("--cwd <path>", "Repository directory.", process.cwd())
+    .option("--judge", "Review bounded packets with the existing judge (may incur model cost).")
+    .option(
+      "--experiment",
+      "Run trusted repository-authored valid/invalid policy experiments in disposable snapshots.",
+    )
+    .option("--rehash", "Reread file bytes instead of trusting unchanged metadata.")
+    .option("--no-cache", "Rehash without saving the structural/judge cache.")
+    .option("--judge-transport <mode>", "api, openai, cli or codex (only with --judge).")
+    .option("--model <name>", "Judge model (only with --judge).")
+    .action(
+      async (opts: {
+        cwd: string;
+        judge?: boolean;
+        experiment?: boolean;
+        rehash?: boolean;
+        cache: boolean;
+        judgeTransport?: string;
+        model?: string;
+      }) => {
+        try {
+          if (
+            opts.judgeTransport &&
+            !["api", "openai", "cli", "codex"].includes(opts.judgeTransport)
+          )
+            throw new Error("invalid --judge-transport");
+          process.stdout.write(
+            await analyze({
+              ...opts,
+              judgeTransport: opts.judgeTransport as "api" | "openai" | "cli" | "codex" | undefined,
+            }),
+          );
+        } catch (err) {
+          console.error(`repofit: ${errorMessage(err)}`);
+          process.exitCode = 2;
         }
       },
     );

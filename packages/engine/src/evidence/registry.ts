@@ -1,4 +1,5 @@
 import type { EvidenceMap, GatherContext } from "../sdk/types.js";
+import { analyzeRepository } from "./structural/analysis.js";
 import { agentConfigSubsystem } from "./subsystems/agent-config.js";
 import { ciWorkflowsSubsystem } from "./subsystems/ci-workflows.js";
 import { commandsSubsystem } from "./subsystems/commands.js";
@@ -44,7 +45,9 @@ export async function gatherAll(ctx: GatherContext): Promise<EvidenceMap> {
     dotnet: dotnetProject,
     go: goModule,
   });
+  let analysis: ReturnType<typeof analyzeRepository> | undefined;
   return {
+    repo_analysis: { inspect: () => (analysis ??= analyzeRepository(ctx.cwd)) },
     files,
     agent_config: agentConfig,
     node_package: nodePackage,

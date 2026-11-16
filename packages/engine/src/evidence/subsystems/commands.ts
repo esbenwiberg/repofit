@@ -38,7 +38,7 @@ export const commandsSubsystem = {
           const firstObserved = !observed.has(key);
           observed.add(key);
           const order = ++sequence;
-          const run = await execOne(argv, cwd, timeoutMs, spec.env);
+          const run = await execOne(argv, cwd, timeoutMs, spec.env, spec.killProcessGroup);
           history.push({
             ...run,
             sequence: order,
@@ -77,6 +77,7 @@ function execOne(
   cwd: string,
   timeoutMs: number,
   env: Record<string, string> | undefined,
+  killProcessGroup = false,
 ): Promise<CommandRun> {
   const [command, ...args] = argv;
   if (command === undefined) {
@@ -93,6 +94,7 @@ function execOne(
     const elapsed = startTimer();
     const child = spawn(command, args, {
       cwd,
+      detached: killProcessGroup && process.platform !== "win32",
       env: env ? { ...process.env, ...env } : process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -102,9 +104,21 @@ function execOne(
     let timedOut = false;
     let settled = false;
 
+    const terminate = () => {
+      if (killProcessGroup && process.platform !== "win32" && child.pid) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          /* already exited */
+        }
+      } else child.kill("SIGKILL");
+    };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      terminate();
+      // Descendants can inherit pipes; a timeout must not depend on a close event.
+      if (killProcessGroup)
+        finish({ exitCode: null, durationMs: elapsed(), stdout, stderr, timedOut: true });
     }, timeoutMs);
 
     child.stdout?.on("data", (chunk: Buffer) => {
@@ -130,6 +144,7 @@ function execOne(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (killProcessGroup) terminate();
       resolve(run);
     };
 

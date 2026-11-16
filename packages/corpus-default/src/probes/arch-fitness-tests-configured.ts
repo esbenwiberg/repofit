@@ -95,7 +95,9 @@ export default defineProbe({
     across the major language ecosystems — dependency-cruiser /
     eslint-plugin-boundaries / ts-arch (JS/TS), NetArchTest / ArchUnitNET
     (.NET), ArchUnit (Java), import-linter (Python), and Go arch tools —
-    and for a package script that names or invokes an architecture or
+    A positive reading means configured, not executed or proven to reject invalid input.
+    Explicit repofit analyze --experiment observations assess that separately.
+    This probe also checks for a package script that names or invokes an architecture or
     boundary check of the repository's own.
   `,
 

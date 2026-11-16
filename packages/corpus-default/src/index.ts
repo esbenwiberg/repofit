@@ -34,6 +34,7 @@ import agentSkillsSingleSource from "./probes/agent-skills-single-source.js";
 import agentUntrustedContentFramed from "./probes/agent-untrusted-content-framed.js";
 import archBoundariesClear from "./probes/arch-boundaries-clear.js";
 import archCouplingHotspots from "./probes/arch-coupling-hotspots.js";
+import archDeclaredPolicyAssessment from "./probes/arch-declared-policy-assessment.js";
 import archDocPresent from "./probes/arch-doc-present.js";
 import archDocQuality from "./probes/arch-doc-quality.js";
 import archFitnessTestsConfigured from "./probes/arch-fitness-tests-configured.js";
@@ -104,6 +105,7 @@ export const meta = {
 };
 
 export const probes = [
+  archDeclaredPolicyAssessment,
   agentCommandsResolve,
   agentGeneratedPathsProtected,
   agentGuidanceAligned,
